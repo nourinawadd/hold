@@ -1,0 +1,74 @@
+/* Lists — grid of list cards. */
+
+.page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 1rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--ink);
+}
+
+.list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 1.5rem;
+}
+
+.list-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    background: var(--paper);
+    border: 0.5px solid var(--hairline);
+}
+
+/* Five-slot thumbnail strip: filled slots are solid, empty slots dashed. */
+
+.thumbs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+}
+
+.thumb {
+    aspect-ratio: 1;
+    border: 0.5px dashed var(--hairline);
+}
+
+.thumb--filled {
+    background: var(--bone);
+    border: 0.5px solid var(--hairline);
+}
+
+.list-card__foot {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: auto;
+}
+
+.list-card__foot h2 {
+    margin-bottom: 0.35rem;
+}
+
+/* Direct child only — the total, not the product line nested beside the name. */
+.list-card__foot > .meta {
+    text-align: right;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .list-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .page-head {
+        margin-bottom: 2rem;
+    }
+}
