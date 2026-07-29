@@ -3,8 +3,6 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
-CLAUDE.md
-
 # dotenv files
 .env
 
@@ -28,6 +26,7 @@ mono_crash.*
 [Rr]eleases/
 x64/
 x86/
+CLAUDE.md
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
