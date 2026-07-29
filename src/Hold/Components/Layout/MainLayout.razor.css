@@ -1,0 +1,38 @@
+/* Topbar — a structural rule dividing the chrome from the content. */
+
+.topbar {
+    display: flex;
+    align-items: center;
+    height: 3.5rem;
+    padding: 0 2rem;
+    border-bottom: 1px solid var(--ink);
+}
+
+.wordmark {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.wordmark:hover {
+    text-decoration: none;
+}
+
+.content {
+    display: block;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 3rem 2rem 5rem;
+}
+
+@media (max-width: 640px) {
+    .topbar {
+        padding: 0 1.25rem;
+    }
+
+    .content {
+        padding: 2rem 1.25rem 4rem;
+    }
+}

@@ -1,0 +1,178 @@
+/* HOLD — design tokens and base styles. */
+
+:root {
+    --bone:       #F2F0EA;  /* page */
+    --paper:      #FAF9F6;  /* cards */
+    --ink:        #16161A;  /* text, rules, buttons */
+    --hairline:   #C9C5BC;  /* dividers */
+    --mute:       #8A867C;  /* labels, metadata */
+    --faint:      #B4B0A6;  /* placeholders, unrecovered values */
+    --permission: #E03127;  /* ready items ONLY */
+
+    --display: 'Archivo', system-ui, sans-serif;
+    --data: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    border-radius: 0;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bone);
+    color: var(--ink);
+    font-family: var(--data);
+    font-weight: 400;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Display — wordmark and page headings only. */
+
+h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+}
+
+/* Everything else is data. */
+
+h2,
+h3,
+h4 {
+    margin: 0;
+    font-family: var(--data);
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.3;
+}
+
+p {
+    margin: 0;
+}
+
+/* Labels and metadata. */
+
+.label,
+.meta {
+    font-family: var(--data);
+    font-weight: 400;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+/* Recovered but unverified values. */
+
+.faint {
+    color: var(--faint);
+}
+
+/* Controls. */
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+button,
+.button {
+    font-family: var(--data);
+    font-weight: 500;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--bone);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+}
+
+button:hover,
+.button:hover {
+    color: var(--ink);
+    background: transparent;
+    text-decoration: none;
+}
+
+input,
+select,
+textarea {
+    font-family: var(--data);
+    font-size: 0.875rem;
+    color: var(--ink);
+    background: var(--paper);
+    border: 0.5px solid var(--hairline);
+    padding: 0.6rem 0.75rem;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--faint);
+}
+
+/* Visible keyboard focus. */
+
+:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+}
+
+h1:focus {
+    outline: none;
+}
+
+/* Error surface — ink, never red. Red means permission. */
+
+#blazor-error-ui {
+    color-scheme: light only;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    display: none;
+    padding: 0.75rem 1.25rem;
+    background: var(--ink);
+    color: var(--bone);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+
+#blazor-error-ui .dismiss {
+    position: absolute;
+    right: 1.25rem;
+    top: 0.7rem;
+    cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
