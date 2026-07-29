@@ -23,6 +23,7 @@ builder.Services.AddDbContextFactory<HoldDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Hold")));
 
 builder.Services.AddScoped<ListService>();
+builder.Services.AddScoped<ItemService>();
 builder.Services.AddScoped<SettingsService>();
 
 var app = builder.Build(); // builds the app (everythin before it is resgistered, and everything after it is executed after the app is built)

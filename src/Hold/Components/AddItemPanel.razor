@@ -1,0 +1,191 @@
+@* Built in the shape phase 5's "Found" state will take — image left, fields right, a
+   provenance header — so the scraper adds states around this rather than replacing it. *@
+@inject SettingsService SettingsService
+@inject TimeProvider Time
+
+<div class="add-panel">
+    @* Phase 5 swaps this for READ FROM SHOPIFY and the like. Naming the source is what
+       prompts the user to check a scraped price. *@
+    <p class="panel-head">Entered by hand</p>
+
+    <form @onsubmit="Submit" @onsubmit:preventDefault>
+        <div class="add-panel__body">
+            <div class="preview">
+                @if (PreviewSource() is { } source)
+                {
+                    <img src="@source" alt="" />
+                }
+                else
+                {
+                    <div class="preview__empty"></div>
+                }
+            </div>
+
+            <div class="fields">
+                <div class="field field--wide">
+                    <label class="label" for="item-url">Product link</label>
+                    <input id="item-url" @ref="urlInput" @bind="url" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field field--wide">
+                    <label class="label" for="item-title">Name</label>
+                    <input id="item-title" @bind="title" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="item-brand">Brand</label>
+                    <input id="item-brand" @bind="brand" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="item-category">Category</label>
+                    <select id="item-category" @bind="category">
+                        @foreach (var option in Enum.GetValues<Category>())
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="item-price">Price</label>
+                    <input id="item-price" type="number" step="0.01" min="0" @bind="price" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="item-currency">Currency</label>
+                    <input id="item-currency" maxlength="3" @bind="currency" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field field--wide">
+                    <label class="label" for="item-image">Image link</label>
+                    <input id="item-image" @bind="imageUrl" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field field--wide">
+                    <label class="label" for="item-note">Note</label>
+                    <input id="item-note" @bind="note" @bind:event="oninput" autocomplete="off" />
+                </div>
+            </div>
+        </div>
+
+        @* The wait control, and directly beneath it the consequence in plain text. An
+           abstract number is easy to set carelessly; a date is a commitment. *@
+        <div class="wait">
+            <div class="wait__control">
+                <span class="label">Hold for</span>
+                <input id="item-wait" type="number" min="@ItemService.MinWaitDays" max="@ItemService.MaxWaitDays"
+                       @bind="waitDays" @bind:event="oninput" />
+                <span class="label">days</span>
+            </div>
+
+            <p class="wait__date">
+                @if (ReadyOn() is { } readyOn)
+                {
+                    @($"Ready on {readyOn}")
+                }
+                else
+                {
+                    <span class="faint">Set a number of days</span>
+                }
+            </p>
+        </div>
+
+        @if (error is not null)
+        {
+            @* Ink, never red. Red means permission. *@
+            <p class="form-error" role="alert">@error</p>
+        }
+
+        <div class="add-panel__actions">
+            <button type="submit">Start the hold</button>
+            <button type="button" class="quiet" @onclick="OnCancel">Cancel</button>
+        </div>
+    </form>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<ItemDraft> OnSubmit { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private string? url;
+    private string? title;
+    private string? brand;
+    private string? imageUrl;
+    private string? note;
+    private decimal? price;
+    private string? currency;
+    private Category category = Category.Other;
+
+    // Nullable so clearing the input does not fight the binding with a stale value.
+    private int? waitDays;
+
+    private string? error;
+    private ElementReference urlInput;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await SettingsService.GetAsync();
+
+        waitDays = settings.DefaultWaitDays;
+        currency = settings.PreferredCurrency;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await urlInput.FocusAsync();
+        }
+    }
+
+    /// <summary>Only render an image once the link is a real one, so a half-typed URL
+    /// does not show a broken-image glyph.</summary>
+    private string? PreviewSource()
+    {
+        var candidate = imageUrl?.Trim();
+
+        return !string.IsNullOrEmpty(candidate)
+            && Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                ? candidate
+                : null;
+    }
+
+    // Formatted in local time: the stored value is UTC, and near local midnight a UTC
+    // format prints the wrong day. Same trap ListCard documents.
+    private string? ReadyOn() =>
+        waitDays is >= ItemService.MinWaitDays and <= ItemService.MaxWaitDays
+            ? Time.GetUtcNow().AddDays(waitDays.Value).ToLocalTime().ToString("d MMM yyyy")
+            : null;
+
+    private ItemDraft Draft() => new(
+        url ?? string.Empty,
+        title ?? string.Empty,
+        brand,
+        imageUrl,
+        price,
+        currency ?? string.Empty,
+        category,
+        waitDays ?? 0,
+        note);
+
+    private async Task Submit()
+    {
+        var draft = Draft();
+
+        // Same rules the service enforces, so the message here and the guard there can
+        // never disagree.
+        error = ItemService.DescribeProblem(draft);
+
+        if (error is not null)
+        {
+            return;
+        }
+
+        await OnSubmit.InvokeAsync(draft);
+    }
+}

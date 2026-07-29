@@ -1,0 +1,136 @@
+/* Add item — one panel. Phase 5 adds the paste, reading, and refused states around it. */
+
+.add-panel {
+    margin-bottom: 2.5rem;
+    background: var(--paper);
+    border: 0.5px solid var(--hairline);
+}
+
+/* Provenance. Phase 5 puts READ FROM SHOPIFY here. */
+.panel-head {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+    border-bottom: 0.5px solid var(--hairline);
+}
+
+.add-panel__body {
+    display: grid;
+    grid-template-columns: 12rem 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+/* Image on the left, whether or not there is one yet. */
+
+.preview img,
+.preview__empty {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: var(--bone);
+}
+
+.preview img {
+    object-fit: cover;
+    border: 0.5px solid var(--hairline);
+}
+
+.preview__empty {
+    border: 0.5px dashed var(--hairline);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    align-content: start;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.field--wide {
+    grid-column: 1 / -1;
+}
+
+.field input,
+.field select {
+    width: 100%;
+}
+
+/* The wait control and its consequence. The date is the point. */
+
+.wait {
+    padding: 1.5rem;
+    border-top: 0.5px solid var(--hairline);
+}
+
+.wait__control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.wait__control input {
+    width: 5rem;
+    text-align: center;
+}
+
+.wait__date {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+}
+
+.form-error {
+    padding: 0 1.5rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+}
+
+.add-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    border-top: 0.5px solid var(--hairline);
+}
+
+@media (max-width: 640px) {
+    .add-panel__body {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        padding: 1.25rem;
+    }
+
+    .preview {
+        max-width: 10rem;
+    }
+
+    /* One column: two side-by-side fields do not fit at 380px. */
+    .fields {
+        grid-template-columns: 1fr;
+    }
+
+    .wait,
+    .add-panel__actions {
+        padding: 1.25rem;
+    }
+
+    .form-error {
+        padding: 0 1.25rem;
+    }
+}

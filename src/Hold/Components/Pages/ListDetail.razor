@@ -1,5 +1,6 @@
 @page "/lists/{Id:int}"
 @inject ListService ListService
+@inject ItemService ItemService
 
 <PageTitle>@(detail?.Name ?? "List") — Hold</PageTitle>
 
@@ -41,10 +42,21 @@ else
         <p class="description">@detail.Description</p>
     }
 
-    @if (detail.ItemCount == 0)
+    @if (adding)
     {
-        @* The paste field arrives in phase 5 and becomes the real empty state. Until then
-           the ghost slots stand alone. *@
+        <AddItemPanel OnSubmit="Add" OnCancel="() => adding = false" />
+    }
+    else
+    {
+        @* Phase 5 replaces this button with the paste field, which then becomes the
+           empty state in its own right. *@
+        <div class="add-row">
+            <button type="button" @onclick="() => adding = true">Add by hand</button>
+        </div>
+    }
+
+    @if (items.Count == 0)
+    {
         <div class="ghosts">
             @for (var slot = 0; slot < 4; slot++)
             {
@@ -54,14 +66,28 @@ else
     }
     else
     {
-        @* Placeholder. Phase 4 replaces this with the ItemCard grid — rendering titles
-           now keeps the page honest about lists that already hold items. *@
-        <ul class="titles">
-            @foreach (var title in detail.ItemTitles)
+        <div class="item-grid">
+            @foreach (var item in Waiting)
             {
-                <li>@title</li>
+                <ItemCard @key="item.Id" Item="item" OnStatusChange="ChangeStatus" />
             }
-        </ul>
+        </div>
+
+        @if (Closed.Any())
+        {
+            @* A structural rule, because what you have decided about is a different zone
+               from what you are still waiting on. *@
+            <div class="closed-rule">
+                <span class="label">Decided</span>
+            </div>
+
+            <div class="item-grid">
+                @foreach (var item in Closed)
+                {
+                    <ItemCard @key="item.Id" Item="item" OnStatusChange="ChangeStatus" />
+                }
+            </div>
+        }
     }
 }
 
@@ -73,15 +99,44 @@ else
     // otherwise shadow the record the service returns.
     private Hold.Services.ListDetail? detail;
 
+    private IReadOnlyList<Item> items = [];
     private bool loaded;
+    private bool adding;
+
+    // ItemService.Sort already puts waiting first, then oldest first within each group,
+    // so filtering here preserves that order.
+    private IEnumerable<Item> Waiting => items.Where(item => item.Status == ItemStatus.Waiting);
+
+    private IEnumerable<Item> Closed => items.Where(item => item.Status != ItemStatus.Waiting);
 
     // OnParametersSetAsync, not OnInitializedAsync: navigating between two list ids reuses
     // this component instance, and OnInitialized would not run again.
     protected override async Task OnParametersSetAsync()
     {
         loaded = false;
-        detail = await ListService.GetDetailAsync(Id);
+        await Load();
         loaded = true;
+    }
+
+    private async Task Load()
+    {
+        detail = await ListService.GetDetailAsync(Id);
+        items = detail is null ? [] : await ItemService.GetForListAsync(Id);
+    }
+
+    private async Task Add(ItemDraft draft)
+    {
+        await ItemService.AddAsync(Id, draft);
+        adding = false;
+
+        // Re-read the list too: the count and the totals both moved.
+        await Load();
+    }
+
+    private async Task ChangeStatus((int Id, ItemStatus Status) change)
+    {
+        await ItemService.SetStatusAsync(change.Id, change.Status);
+        await Load();
     }
 
     private string Count() => detail!.ItemCount == 1 ? "1 item" : $"{detail.ItemCount} items";

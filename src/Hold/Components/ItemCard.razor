@@ -1,0 +1,75 @@
+@* One item. The day count, the progress hairline, and the ready state in --permission all
+   belong to phase 6 — this card shows the facts and the date the wait ends. *@
+
+<article class="item-card @(IsClosed ? "item-card--closed" : null)">
+    <a class="item-card__image" href="@Item.Url" target="_blank" rel="noopener noreferrer">
+        @if (Item.ImageUrl is { } source)
+        {
+            <img src="@source" alt="" />
+        }
+        else
+        {
+            <div class="item-card__noimage"></div>
+        }
+    </a>
+
+    <div class="item-card__body">
+        <h3>@Item.Title</h3>
+
+        <p class="meta">@Facets()</p>
+
+        @if (Item.Price is { } amount)
+        {
+            <p class="price">@($"{amount:N2} {Item.Currency}")</p>
+        }
+        else
+        {
+            @* Unrecovered values render faint, so an absent price never reads as free. *@
+            <p class="price faint">—</p>
+        }
+
+        @if (Item.Note is { } note)
+        {
+            <p class="item-card__note">@note</p>
+        }
+
+        @if (IsClosed)
+        {
+            <p class="item-card__state">@(Item.Status == ItemStatus.Bought ? "Bought" : "Let go")</p>
+        }
+        else
+        {
+            <p class="item-card__ready">Ready @ReadyOn()</p>
+        }
+    </div>
+
+    <div class="item-card__actions">
+        @if (IsClosed)
+        {
+            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Waiting)">Reopen</button>
+        }
+        else
+        {
+            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Bought)">Bought</button>
+            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.LetGo)">Let go</button>
+        }
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public Item Item { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<(int Id, ItemStatus Status)> OnStatusChange { get; set; }
+
+    private bool IsClosed => Item.Status != ItemStatus.Waiting;
+
+    private Task Set(ItemStatus status) => OnStatusChange.InvokeAsync((Item.Id, status));
+
+    private string Facets() =>
+        Item.Brand is { } brand ? $"{brand} · {Item.Category}" : Item.Category.ToString();
+
+    // Stored UTC, formatted local — otherwise the date prints a day early near midnight.
+    private string ReadyOn() => Item.ReadyAt.ToLocalTime().ToString("d MMM yyyy");
+}

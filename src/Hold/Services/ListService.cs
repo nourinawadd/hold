@@ -20,9 +20,7 @@ public sealed record ListDetail(
     decimal? BudgetAmount,
     string? BudgetCurrency,
     int ItemCount,
-    IReadOnlyList<CurrencyTotal> Totals,
-    // Placeholder until phase 4 renders items properly. See ListDetail.razor.
-    IReadOnlyList<string> ItemTitles);
+    IReadOnlyList<CurrencyTotal> Totals);
 
 public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
 {
@@ -102,9 +100,8 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
-        // Items are left in natural key order: SavedAt is a DateTimeOffset, which SQLite
-        // cannot sort, and the real ordering rule (ready first, then days waited) is
-        // phase 6's to define.
+        // Only what the header needs. The items themselves come from ItemService, which
+        // owns their ordering.
         var row = await db.WishLists
             .AsNoTracking()
             .Where(list => list.Id == id && list.OwnerId == WishList.DefaultOwnerId)
@@ -116,7 +113,7 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
                 list.BudgetAmount,
                 list.BudgetCurrency,
                 Items = list.Items
-                    .Select(item => new { item.Title, item.Price, item.Currency })
+                    .Select(item => new { item.Price, item.Currency })
                     .ToList(),
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -133,8 +130,7 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
             row.BudgetAmount,
             row.BudgetCurrency,
             row.Items.Count,
-            Totals(row.Items.Select(item => (item.Price, item.Currency))),
-            row.Items.Select(item => item.Title).ToList());
+            Totals(row.Items.Select(item => (item.Price, item.Currency))));
     }
 
     public async Task<int> CreateAsync(

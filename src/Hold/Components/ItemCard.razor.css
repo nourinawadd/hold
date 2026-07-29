@@ -1,0 +1,98 @@
+/* Item card. No red anywhere: the ready state is phase 6, and red means permission. */
+
+.item-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border: 0.5px solid var(--hairline);
+}
+
+.item-card__image {
+    display: block;
+}
+
+.item-card__image img,
+.item-card__noimage {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: var(--bone);
+}
+
+.item-card__image img {
+    object-fit: cover;
+}
+
+.item-card__noimage {
+    border-bottom: 0.5px dashed var(--hairline);
+}
+
+.item-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1rem;
+}
+
+.item-card__body h3 {
+    margin-bottom: 0.1rem;
+}
+
+.item-card__image:hover + .item-card__body h3 {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+.price {
+    font-weight: 500;
+}
+
+.item-card__note {
+    color: var(--mute);
+    font-style: italic;
+}
+
+/* The date the wait ends. Plain ink — the count and the permission colour are phase 6. */
+.item-card__ready {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+}
+
+.item-card__state {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+.item-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0 1rem 0.75rem;
+}
+
+/* Closed items stay on the list as a record of what was decided, quieted so they do not
+   compete with what is still being waited for. */
+
+.item-card--closed {
+    background: transparent;
+}
+
+.item-card--closed .item-card__body h3,
+.item-card--closed .price {
+    color: var(--mute);
+    font-weight: 400;
+}
+
+.item-card--closed .item-card__image img {
+    opacity: 0.45;
+}
