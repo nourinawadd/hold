@@ -1,3 +1,4 @@
+using System.Globalization;
 using Hold.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,9 @@ public sealed record ItemDraft(
     Category Category,
     int WaitDays,
     string? Note);
+
+/// <summary>What the all-items view is asking for. Both parts are optional.</summary>
+public sealed record ItemFilter(Category? Category = null, string? Search = null);
 
 public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
 {
@@ -128,17 +132,70 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
             .Where(item => item.WishListId == listId)
             .ToListAsync(cancellationToken);
 
-        return Sort(items);
+        // Readiness is computed, never stored, so the ordering depends on the moment the
+        // query ran rather than on a column some background job had to keep fresh.
+        return Sort(items, time.GetUtcNow());
     }
 
     /// <summary>
-    /// Waiting items first, then closed. Within each group, oldest first — that is
-    /// days-waited descending, and the longest-held thing is the most interesting.
-    /// Phase 6 inserts a ready-first tier above this.
+    /// Every item across every list, filtered and sorted by the same rules as one list.
+    /// Includes the parent so a card can name its list and so search can match on it.
     /// </summary>
-    public static List<Item> Sort(IEnumerable<Item> items) =>
+    public async Task<IReadOnlyList<Item>> GetAllAsync(
+        ItemFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var items = await db.Items
+            .AsNoTracking()
+            .Include(item => item.WishList)
+            .Where(item => item.WishList.OwnerId == WishList.DefaultOwnerId)
+            .ToListAsync(cancellationToken);
+
+        // Filtering in memory, which the money and date rules already force — and which
+        // keeps matching identical to what the tests exercise rather than at the mercy of
+        // SQLite's collation.
+        return Sort(
+            items.Where(item =>
+                (filter.Category is null || item.Category == filter.Category)
+                && Matches(item, filter.Search)),
+            time.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Title, brand, or the name of the list it sits in. Accent- and case-insensitive, so
+    /// "doen" finds "Dôen" — an ordinal comparison would not, and shops write accents.
+    /// </summary>
+    public static bool Matches(Item item, string? search)
+    {
+        var term = search?.Trim();
+
+        if (string.IsNullOrEmpty(term))
+        {
+            return true;
+        }
+
+        return Contains(item.Title, term)
+            || Contains(item.Brand, term)
+            || Contains(item.WishList?.Name, term);
+    }
+
+    private static bool Contains(string? haystack, string needle) =>
+        haystack is not null
+        && CultureInfo.InvariantCulture.CompareInfo.IndexOf(
+            haystack, needle, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+
+    /// <summary>
+    /// Three tiers. Closed items sink to the bottom; among what is still being waited on,
+    /// anything whose wait has elapsed rises to the top; and within each group the oldest
+    /// comes first — which is days-waited descending, because the longest-held thing is the
+    /// most interesting thing.
+    /// </summary>
+    public static List<Item> Sort(IEnumerable<Item> items, DateTimeOffset now) =>
         items
             .OrderBy(item => item.Status == ItemStatus.Waiting ? 0 : 1)
+            .ThenBy(item => item.IsReady(now) ? 0 : 1)
             .ThenBy(item => item.SavedAt)
             .ToList();
 

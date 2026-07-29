@@ -13,6 +13,22 @@
         <input id="list-description" @bind="description" @bind:event="oninput" autocomplete="off" />
     </div>
 
+    @* A budget is optional, and scoped to one currency: the bar counts only items quoted in
+       it, because amounts are never converted. *@
+    <div class="money">
+        <div class="field">
+            <label class="label" for="list-budget">Budget — optional</label>
+            <input id="list-budget" type="number" step="0.01" min="0"
+                   @bind="budgetAmount" @bind:event="oninput" autocomplete="off" />
+        </div>
+
+        <div class="field">
+            <label class="label" for="list-currency">Currency</label>
+            <input id="list-currency" maxlength="3"
+                   @bind="budgetCurrency" @bind:event="oninput" autocomplete="off" />
+        </div>
+    </div>
+
     @if (ShowSuggestions)
     {
         <div class="suggestions">
@@ -54,16 +70,24 @@
     public string? InitialDescription { get; set; }
 
     [Parameter]
+    public decimal? InitialBudgetAmount { get; set; }
+
+    [Parameter]
+    public string? InitialBudgetCurrency { get; set; }
+
+    [Parameter]
     public bool ShowSuggestions { get; set; }
 
     [Parameter]
-    public EventCallback<(string Name, string? Description)> OnSubmit { get; set; }
+    public EventCallback<ListService.ListDraft> OnSubmit { get; set; }
 
     [Parameter]
     public EventCallback OnCancel { get; set; }
 
     private string? name;
     private string? description;
+    private decimal? budgetAmount;
+    private string? budgetCurrency;
     private string? error;
     private ElementReference nameInput;
 
@@ -73,6 +97,8 @@
     {
         name = InitialName;
         description = InitialDescription;
+        budgetAmount = InitialBudgetAmount;
+        budgetCurrency = InitialBudgetCurrency;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,15 +111,18 @@
 
     private async Task Submit()
     {
+        var draft = new ListService.ListDraft(
+            name ?? string.Empty, description, budgetAmount, budgetCurrency);
+
         // Same rules the service enforces, so the message here and the guard there can
         // never disagree.
-        error = ListService.DescribeProblem(name, description);
+        error = ListService.DescribeProblem(draft);
 
         if (error is not null)
         {
             return;
         }
 
-        await OnSubmit.InvokeAsync((name!.Trim(), description));
+        await OnSubmit.InvokeAsync(draft with { Name = draft.Name.Trim() });
     }
 }

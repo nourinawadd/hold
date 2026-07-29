@@ -21,6 +21,19 @@
     width: 100%;
 }
 
+/* Amount and its currency belong together — one is meaningless without the other. */
+.money {
+    display: grid;
+    grid-template-columns: 1fr 6rem;
+    gap: 1rem;
+}
+
+@media (max-width: 26rem) {
+    .money {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Suggested names — clicking one fills the name field. The .chip control itself lives in
    app.css, since the empty state on Lists.razor uses it too. */
 

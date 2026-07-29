@@ -1,6 +1,7 @@
 @page "/lists/{Id:int}"
 @inject ListService ListService
 @inject ItemService ItemService
+@inject TimeProvider Time
 
 <PageTitle>@(detail?.Name ?? "List") — Hold</PageTitle>
 
@@ -58,10 +59,24 @@ else
     }
     else
     {
+        @* Filtering the grid, so it sits with the grid rather than above the paste field. *@
+        <CategoryStrip Selected="category" Available="present" SelectedChanged="c => category = c" />
+        <ItemSearch Value="@search" ValueChanged="s => search = s" />
+    }
+
+    @if (items.Count > 0 && Shown.Count == 0)
+    {
+        <p class="nothing">@Nothing()</p>
+    }
+    else if (items.Count > 0)
+    {
+        // Read once per render so every card agrees on which items are ready.
+        var now = Time.GetUtcNow();
+
         <div class="item-grid">
             @foreach (var item in Waiting)
             {
-                <ItemCard @key="item.Id" Item="item" OnStatusChange="ChangeStatus" />
+                <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" />
             }
         </div>
 
@@ -76,11 +91,15 @@ else
             <div class="item-grid">
                 @foreach (var item in Closed)
                 {
-                    <ItemCard @key="item.Id" Item="item" OnStatusChange="ChangeStatus" />
+                    <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" />
                 }
             </div>
         }
     }
+
+    @* Pinned at the foot of the content. Counts only its own currency; the totals it cannot
+       count are named beneath it. *@
+    <BudgetBar Amount="detail.BudgetAmount" Currency="@detail.BudgetCurrency" Totals="detail.Totals" />
 }
 
 @code {
@@ -95,11 +114,36 @@ else
     private bool loaded;
     private int addKey;
 
-    // ItemService.Sort already puts waiting first, then oldest first within each group,
-    // so filtering here preserves that order.
-    private IEnumerable<Item> Waiting => items.Where(item => item.Status == ItemStatus.Waiting);
+    private Category? category;
+    private string? search;
 
-    private IEnumerable<Item> Closed => items.Where(item => item.Status != ItemStatus.Waiting);
+    /// <summary>
+    /// The filter runs over what is already loaded — no round trip to narrow a list that is
+    /// in hand. Reuses ItemService.Matches so this page and /items agree on what a match is.
+    /// </summary>
+    private IReadOnlyList<Item> Shown => items
+        .Where(item => (category is null || item.Category == category)
+            && ItemService.Matches(item, search))
+        .ToList();
+
+    /// <summary>Computed from every item, not the filtered set, so choosing a category does
+    /// not make the other options disappear.</summary>
+    private IReadOnlySet<Category> present => items.Select(item => item.Category).ToHashSet();
+
+    // ItemService.Sort already puts waiting first, ready ahead of the rest, then oldest
+    // first within each group — so filtering here preserves that order.
+    private IEnumerable<Item> Waiting => Shown.Where(item => item.Status == ItemStatus.Waiting);
+
+    private IEnumerable<Item> Closed => Shown.Where(item => item.Status != ItemStatus.Waiting);
+
+    // Names what was looked for rather than announcing a failure.
+    private string Nothing() => (category, string.IsNullOrWhiteSpace(search)) switch
+    {
+        (not null, false) => $"Nothing in {category} matches “{search!.Trim()}”.",
+        (not null, true) => $"Nothing in this list is filed under {category}.",
+        (null, false) => $"Nothing in this list matches “{search!.Trim()}”.",
+        _ => "Nothing here.",
+    };
 
     // OnParametersSetAsync, not OnInitializedAsync: navigating between two list ids reuses
     // this component instance, and OnInitialized would not run again.

@@ -1,4 +1,5 @@
-/* Item card. No red anywhere: the ready state is phase 6, and red means permission. */
+/* Item card. The only file in Hold that may use --permission, and only on an item whose
+   wait has elapsed. Not on errors, not on delete, not on over-budget. */
 
 .item-card {
     display: flex;
@@ -53,23 +54,85 @@
     font-style: italic;
 }
 
-/* The date the wait ends. Plain ink — the count and the permission colour are phase 6. */
-.item-card__ready {
+/* Which list this belongs to — shown only on /items. */
+.item-card__list {
+    align-self: flex-start;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+.item-card__list:hover {
+    color: var(--ink);
+}
+
+/* The tally — how long this has been wanted. The largest thing on the card, because it is
+   the one number the app exists to show. */
+
+.tally {
     margin-top: auto;
-    padding-top: 0.6rem;
+    padding-top: 0.75rem;
+}
+
+.tally__count {
+    display: block;
+    font-family: var(--data);
+    font-weight: 500;
+    font-size: 2rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
+
+.tally__label {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+/* The date the wait ends. The consequence, stated plainly. */
+.tally__date {
+    margin-top: 0.5rem;
     font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.14em;
     color: var(--ink);
 }
 
-.item-card__state {
-    margin-top: auto;
-    padding-top: 0.6rem;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+/* Progress hairline: elapsed against the wait, no numbers of its own. */
+
+.wait-rule {
+    height: 1px;
+    margin-top: 0.6rem;
+    background: var(--hairline);
+}
+
+.wait-rule__fill {
+    height: 100%;
+    background: var(--ink);
+}
+
+/* Ready. The wait has elapsed and the item may be bought — the one thing red is for. */
+
+.tally--ready .tally__count,
+.tally--ready .tally__label {
+    color: var(--permission);
+}
+
+.tally--ready .wait-rule__fill {
+    background: var(--permission);
+}
+
+/* Closed: a record of how long the decision took. Never red — IsReady is false for
+   anything that is not still waiting. */
+
+.tally--closed .tally__count {
+    font-weight: 400;
     color: var(--mute);
 }
 

@@ -34,14 +34,21 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     /// <summary>Slots in a list card's thumbnail strip.</summary>
     public const int ThumbnailSlots = 5;
 
+    /// <summary>What the create and rename form collects.</summary>
+    public sealed record ListDraft(
+        string Name,
+        string? Description,
+        decimal? BudgetAmount,
+        string? BudgetCurrency);
+
     /// <summary>
-    /// The one place the naming rules live. The form calls this to show a message; the
-    /// mutations below call it again so a bad value cannot reach the database by another
+    /// The one place the naming and budget rules live. The form calls this to show a message;
+    /// the mutations below call it again so a bad value cannot reach the database by another
     /// route.
     /// </summary>
-    public static string? DescribeProblem(string? name, string? description)
+    public static string? DescribeProblem(ListDraft draft)
     {
-        var trimmedName = name?.Trim();
+        var trimmedName = draft.Name?.Trim();
 
         if (string.IsNullOrEmpty(trimmedName))
         {
@@ -53,14 +60,47 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
             return $"That name is {trimmedName.Length} characters. Keep it under {NameMaxLength}.";
         }
 
-        var trimmedDescription = description?.Trim();
+        var trimmedDescription = draft.Description?.Trim();
 
         if (trimmedDescription?.Length > DescriptionMaxLength)
         {
             return $"That description is {trimmedDescription.Length} characters. Keep it under {DescriptionMaxLength}.";
         }
 
+        if (draft.BudgetAmount is < 0)
+        {
+            return "A budget cannot be negative.";
+        }
+
+        var currency = draft.BudgetCurrency?.Trim();
+
+        // Three letters, because the column is char(3) and every currency code is.
+        if (!string.IsNullOrEmpty(currency) && (currency.Length != 3 || !currency.All(char.IsLetter)))
+        {
+            return "Currency should be a three-letter code, like USD.";
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// An amount with no currency takes the preferred one — a number alone cannot say what it
+    /// counts. A currency with no amount is cleared, because a currency governs nothing on its
+    /// own.
+    /// </summary>
+    public static (decimal? Amount, string? Currency) SettleBudget(
+        decimal? amount,
+        string? currency,
+        string preferredCurrency)
+    {
+        if (amount is null)
+        {
+            return (null, null);
+        }
+
+        var settled = Clean(currency) ?? preferredCurrency;
+
+        return (amount, settled.Trim().ToUpperInvariant());
     }
 
     public async Task<IReadOnlyList<ListSummary>> GetSummariesAsync(
@@ -146,20 +186,23 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     }
 
     public async Task<int> CreateAsync(
-        string name,
-        string? description,
+        ListDraft draft,
+        string preferredCurrency = "USD",
         CancellationToken cancellationToken = default)
     {
-        Guard(name, description);
+        Guard(draft);
 
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
         var now = time.GetUtcNow();
+        var (amount, currency) = SettleBudget(draft.BudgetAmount, draft.BudgetCurrency, preferredCurrency);
 
         var list = new WishList
         {
-            Name = name.Trim(),
-            Description = Clean(description),
+            Name = draft.Name.Trim(),
+            Description = Clean(draft.Description),
+            BudgetAmount = amount,
+            BudgetCurrency = currency,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -173,11 +216,11 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     /// <summary>Returns false when the list no longer exists — a stale card, not an error.</summary>
     public async Task<bool> RenameAsync(
         int id,
-        string name,
-        string? description,
+        ListDraft draft,
+        string preferredCurrency = "USD",
         CancellationToken cancellationToken = default)
     {
-        Guard(name, description);
+        Guard(draft);
 
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
@@ -190,8 +233,12 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
             return false;
         }
 
-        list.Name = name.Trim();
-        list.Description = Clean(description);
+        var (amount, currency) = SettleBudget(draft.BudgetAmount, draft.BudgetCurrency, preferredCurrency);
+
+        list.Name = draft.Name.Trim();
+        list.Description = Clean(draft.Description);
+        list.BudgetAmount = amount;
+        list.BudgetCurrency = currency;
 
         // A rename counts as activity, so the card carries a fresh time and rises to the
         // top of the grid.
@@ -222,13 +269,13 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
         return true;
     }
 
-    private static void Guard(string? name, string? description)
+    private static void Guard(ListDraft draft)
     {
-        var problem = DescribeProblem(name, description);
+        var problem = DescribeProblem(draft);
 
         if (problem is not null)
         {
-            throw new ArgumentException(problem, nameof(name));
+            throw new ArgumentException(problem, nameof(draft));
         }
     }
 

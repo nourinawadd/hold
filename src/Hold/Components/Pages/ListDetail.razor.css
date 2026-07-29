@@ -37,8 +37,13 @@
     color: var(--mute);
 }
 
-.missing {
+.missing,
+.nothing {
     color: var(--mute);
+}
+
+.nothing {
+    padding: 1.5rem 0 3rem;
 }
 
 /* Empty state — four slots fading out left to right. */

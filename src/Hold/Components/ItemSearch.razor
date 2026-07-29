@@ -1,0 +1,34 @@
+@* Narrows as you type — no submit button, because there is nothing to submit to. *@
+
+<div class="search">
+    <label class="label" for="@id">Search</label>
+
+    <div class="search__row">
+        <input id="@id" type="search" value="@Value" @oninput="Typed"
+               placeholder="@Placeholder" autocomplete="off" />
+
+        @if (!string.IsNullOrEmpty(Value))
+        {
+            <button type="button" class="quiet" @onclick="Clear">Clear</button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public string Placeholder { get; set; } = "name, brand, or list";
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    // Unique per instance so the label binds correctly when two searches share a page.
+    private readonly string id = $"search-{Guid.NewGuid():N}";
+
+    private Task Typed(ChangeEventArgs args) =>
+        ValueChanged.InvokeAsync(args.Value?.ToString());
+
+    private Task Clear() => ValueChanged.InvokeAsync(null);
+}

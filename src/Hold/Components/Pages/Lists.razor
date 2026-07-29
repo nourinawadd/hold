@@ -1,6 +1,7 @@
 @page "/"
 @page "/lists"
 @inject ListService ListService
+@inject SettingsService SettingsService
 @inject TimeProvider Time
 
 <PageTitle>Lists — Hold</PageTitle>
@@ -46,6 +47,8 @@ else
                   SubmitLabel="@(mode is Mode.Create ? "Create" : "Save")"
                   InitialName="@prefillName"
                   InitialDescription="@prefillDescription"
+                  InitialBudgetAmount="prefillBudgetAmount"
+                  InitialBudgetCurrency="@prefillBudgetCurrency"
                   ShowSuggestions="showSuggestions"
                   OnSubmit="Save"
                   OnCancel="Close" />
@@ -75,9 +78,18 @@ else
     private int editId;
     private string? prefillName;
     private string? prefillDescription;
+    private decimal? prefillBudgetAmount;
+    private string? prefillBudgetCurrency;
     private bool showSuggestions;
+    private string preferredCurrency = "USD";
 
-    protected override async Task OnInitializedAsync() => await Reload();
+    protected override async Task OnInitializedAsync()
+    {
+        // The currency a bare budget amount is assumed to be in.
+        preferredCurrency = (await SettingsService.GetAsync()).PreferredCurrency;
+
+        await Reload();
+    }
 
     private void StartCreate(string? withName = null)
     {
@@ -85,6 +97,8 @@ else
         editId = 0;
         prefillName = withName;
         prefillDescription = null;
+        prefillBudgetAmount = null;
+        prefillBudgetCurrency = preferredCurrency;
 
         // A blank form offers the four names; one opened from a suggestion already has one.
         showSuggestions = withName is null;
@@ -92,7 +106,7 @@ else
 
     private async Task StartRename(int id)
     {
-        // Description is not carried on the card, so it is fetched for the prefill.
+        // The card carries neither description nor budget, so they are fetched for the prefill.
         var detail = await ListService.GetDetailAsync(id);
 
         if (detail is null)
@@ -106,20 +120,22 @@ else
         editId = id;
         prefillName = detail.Name;
         prefillDescription = detail.Description;
+        prefillBudgetAmount = detail.BudgetAmount;
+        prefillBudgetCurrency = detail.BudgetCurrency ?? preferredCurrency;
         showSuggestions = false;
     }
 
     private void Close() => mode = Mode.None;
 
-    private async Task Save((string Name, string? Description) input)
+    private async Task Save(ListService.ListDraft draft)
     {
         if (mode is Mode.Create)
         {
-            await ListService.CreateAsync(input.Name, input.Description);
+            await ListService.CreateAsync(draft, preferredCurrency);
         }
         else
         {
-            await ListService.RenameAsync(editId, input.Name, input.Description);
+            await ListService.RenameAsync(editId, draft, preferredCurrency);
         }
 
         Close();

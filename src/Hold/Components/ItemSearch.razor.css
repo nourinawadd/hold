@@ -1,0 +1,23 @@
+.search {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.search__row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.search__row input {
+    flex: 1;
+    min-width: 0;
+    max-width: 26rem;
+}
+
+/* The browser's own clear affordance duplicates the button beside it. */
+.search__row input::-webkit-search-cancel-button {
+    display: none;
+}

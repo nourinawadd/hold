@@ -1,0 +1,43 @@
+@* One category at a time — items carry one category, not tags, so this is a switch and not a
+   set of checkboxes. Built from the enum so it cannot drift from Category.cs. *@
+
+<div class="strip" role="group" aria-label="Filter by category">
+    <button type="button"
+            class="strip__option @(Selected is null ? "strip__option--on" : null)"
+            @onclick="() => Choose(null)">
+        All
+    </button>
+
+    @foreach (var category in Enum.GetValues<Category>())
+    {
+        @* Categories with nothing in them are left out: a strip of eleven mostly-dead options
+           is noise, and the counts are already to hand. *@
+        if (Available.Count == 0 || Available.Contains(category))
+        {
+            <button type="button"
+                    class="strip__option @(Selected == category ? "strip__option--on" : null)"
+                    @onclick="() => Choose(category)">
+                @category
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Category? Selected { get; set; }
+
+    /// <summary>
+    /// Categories that actually occur in what is being filtered. Empty means show all of
+    /// them — used where the caller has not worked the set out.
+    /// </summary>
+    [Parameter]
+    public IReadOnlySet<Category> Available { get; set; } = new HashSet<Category>();
+
+    [Parameter]
+    public EventCallback<Category?> SelectedChanged { get; set; }
+
+    private Task Choose(Category? category) =>
+        // Clicking the one already chosen clears it, so All is never the only way back.
+        SelectedChanged.InvokeAsync(Selected == category ? null : category);
+}

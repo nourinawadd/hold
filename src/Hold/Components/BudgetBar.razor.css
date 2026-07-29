@@ -1,0 +1,64 @@
+/* Budget bar. Pinned at the foot of the list's content.
+
+   No --permission anywhere in this file: over budget is a fact about money, not permission to
+   buy. Red belongs to ready items alone. */
+
+.budget {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--ink);
+}
+
+.budget__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.budget__figures {
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.budget__track {
+    height: 4px;
+    background: var(--bone);
+    border: 0.5px solid var(--hairline);
+}
+
+.budget__fill {
+    height: 100%;
+    background: var(--ink);
+}
+
+.budget__aside {
+    margin-top: 0.6rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+/* Over budget: bold ink and a hatched fill. The hatching reads as "past the line" without
+   borrowing the one colour reserved for readiness. */
+
+.budget--over .budget__figures,
+.budget--over .label {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.budget--over .budget__fill {
+    background: repeating-linear-gradient(
+        135deg,
+        var(--ink) 0,
+        var(--ink) 2px,
+        transparent 2px,
+        transparent 5px
+    );
+}

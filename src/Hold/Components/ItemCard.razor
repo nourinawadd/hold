@@ -1,5 +1,6 @@
-@* One item. The day count, the progress hairline, and the ready state in --permission all
-   belong to phase 6 — this card shows the facts and the date the wait ends. *@
+@* One item, and how long it has been wanted. The count is the point of the app, so it is
+   the largest thing on the card. When the wait elapses it turns --permission — the only
+   place in Hold where red is allowed. *@
 
 <article class="item-card @(IsClosed ? "item-card--closed" : null)">
     <a class="item-card__image" href="@Item.Url" target="_blank" rel="noopener noreferrer">
@@ -18,6 +19,12 @@
 
         <p class="meta">@Facets()</p>
 
+        @if (ShowList && Item.WishList is { } list)
+        {
+            @* Only on the all-items view: inside a list, saying which list is noise. *@
+            <a class="item-card__list" href="/lists/@list.Id">@list.Name</a>
+        }
+
         @if (Item.Price is { } amount)
         {
             <p class="price">@($"{amount:N2} {Item.Currency}")</p>
@@ -33,14 +40,31 @@
             <p class="item-card__note">@note</p>
         }
 
-        @if (IsClosed)
-        {
-            <p class="item-card__state">@(Item.Status == ItemStatus.Bought ? "Bought" : "Let go")</p>
-        }
-        else
-        {
-            <p class="item-card__ready">Ready @ReadyOn()</p>
-        }
+        <div class="tally @TallyModifier()">
+            <span class="tally__count">@Days</span>
+
+            @if (IsClosed)
+            {
+                @* Frozen at the decision, and a record of how long it took to reach it. *@
+                <span class="tally__label">@($"days · {(Item.Status == ItemStatus.Bought ? "bought" : "let go")}")</span>
+            }
+            else
+            {
+                <span class="tally__label">@(Ready ? "Ready" : "days waited")</span>
+
+                @* Elapsed against the wait. No label — the count above already says it. *@
+                <div class="wait-rule">
+                    <div class="wait-rule__fill" style="width: @Elapsed()%"></div>
+                </div>
+
+                @if (!Ready)
+                {
+                    @* Dropped once ready: the date is in the past, and the count says how
+                       long ago it passed. *@
+                    <p class="tally__date">Ready @ReadyOn()</p>
+                }
+            }
+        </div>
     </div>
 
     <div class="item-card__actions">
@@ -60,10 +84,37 @@
     [Parameter, EditorRequired]
     public Item Item { get; set; } = null!;
 
+    /// <summary>
+    /// Passed down rather than read from an injected TimeProvider, so every card in a render
+    /// agrees on the moment — otherwise two cards could disagree about which is ready.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    /// <summary>Names the list this item sits in. Wanted on /items, redundant inside a list.</summary>
+    [Parameter]
+    public bool ShowList { get; set; }
+
     [Parameter]
     public EventCallback<(int Id, ItemStatus Status)> OnStatusChange { get; set; }
 
     private bool IsClosed => Item.Status != ItemStatus.Waiting;
+
+    private bool Ready => Item.IsReady(Now);
+
+    /// <summary>
+    /// Days waited, and for a closed item days held: counting stops at the decision rather
+    /// than climbing forever after you already bought the thing. Reuses the arithmetic on
+    /// Item rather than repeating it.
+    /// </summary>
+    private int Days => Item.DaysWaited(Item.ClosedAt ?? Now);
+
+    private string? TallyModifier() => IsClosed ? "tally--closed" : Ready ? "tally--ready" : null;
+
+    /// <summary>How much of the wait has passed, capped at full. A wait of zero days cannot
+    /// happen — the validator floors it at one — but dividing by it would be fatal.</summary>
+    private int Elapsed() =>
+        Item.WaitDays <= 0 ? 100 : Math.Clamp(Days * 100 / Item.WaitDays, 0, 100);
 
     private Task Set(ItemStatus status) => OnStatusChange.InvokeAsync((Item.Id, status));
 
