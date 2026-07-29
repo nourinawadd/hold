@@ -67,12 +67,6 @@
     opacity: 0.25;
 }
 
-/* Add affordance. Phase 5 puts the paste field here. */
-
-.add-row {
-    margin-bottom: 2.5rem;
-}
-
 /* Item grid. */
 
 .item-grid {

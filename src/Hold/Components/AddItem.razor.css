@@ -1,0 +1,109 @@
+/* States 1 and 2 of the add flow. The panel surface itself is in app.css. */
+
+/* 1 — Paste. On an empty list this is the empty state: no separate call to action,
+   because the input is already focused and waiting. */
+
+.paste {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.5rem;
+}
+
+.paste__row {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.paste__row input {
+    flex: 1;
+    min-width: 0;
+}
+
+.paste__row button:disabled {
+    color: var(--faint);
+    background: transparent;
+    border-color: var(--hairline);
+    cursor: default;
+}
+
+/* The fallback, not the invitation. */
+.paste__manual {
+    align-self: flex-start;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.8125rem;
+}
+
+/* 2 — Reading. The gap between paste and result is filled with the parser chain
+   reporting itself. */
+
+.reading {
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.step {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.2rem 0;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+}
+
+/* The step still running. Completed steps stay in ink. */
+.step--current {
+    color: var(--faint);
+}
+
+.step__time {
+    color: var(--mute);
+    white-space: nowrap;
+}
+
+/* A hairline that fills as the chain proceeds. Honest about being indeterminate: it
+   animates only where motion is welcome. */
+.reading__rule {
+    height: 1px;
+    margin-top: 1rem;
+    background: var(--hairline);
+    overflow: hidden;
+    position: relative;
+}
+
+.reading__rule::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: var(--ink);
+    animation: sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reading__rule::after {
+        animation: none;
+        width: 100%;
+        background: var(--hairline);
+    }
+}
+
+@media (max-width: 640px) {
+    .paste,
+    .reading {
+        padding: 1.25rem;
+    }
+
+    /* The button below the field: side by side leaves the input unusable at 380px. */
+    .paste__row {
+        flex-direction: column;
+    }
+}

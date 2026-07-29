@@ -1,12 +1,18 @@
-@* Built in the shape phase 5's "Found" state will take — image left, fields right, a
-   provenance header — so the scraper adds states around this rather than replacing it. *@
+@* States 3 and 4 of the add flow — found, and refused or partial. Identical layout,
+   identical button, identical weight. Only the header, the message, and the prefill
+   differ, because a page that hid its details is not a failure the user caused. *@
 @inject SettingsService SettingsService
 @inject TimeProvider Time
 
 <div class="add-panel">
-    @* Phase 5 swaps this for READ FROM SHOPIFY and the like. Naming the source is what
-       prompts the user to check a scraped price. *@
-    <p class="panel-head">Entered by hand</p>
+    @* Provenance. Naming the source is what prompts the user to check a scraped price,
+       which lies about sales, variants, and currency. *@
+    <p class="panel-head">@Header</p>
+
+    @if (Message is not null)
+    {
+        <p class="panel-note">@Message</p>
+    }
 
     <form @onsubmit="Submit" @onsubmit:preventDefault>
         <div class="add-panel__body">
@@ -24,17 +30,17 @@
             <div class="fields">
                 <div class="field field--wide">
                     <label class="label" for="item-url">Product link</label>
-                    <input id="item-url" @ref="urlInput" @bind="url" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-url" @ref="firstInput" @bind="url" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field field--wide">
                     <label class="label" for="item-title">Name</label>
-                    <input id="item-title" @bind="title" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-title" class="@Faint(ProductField.Title)" @bind="Title" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field">
                     <label class="label" for="item-brand">Brand</label>
-                    <input id="item-brand" @bind="brand" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-brand" class="@Faint(ProductField.Brand)" @bind="Brand" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field">
@@ -49,17 +55,19 @@
 
                 <div class="field">
                     <label class="label" for="item-price">Price</label>
-                    <input id="item-price" type="number" step="0.01" min="0" @bind="price" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-price" class="@Faint(ProductField.Price)" type="number" step="0.01" min="0"
+                           @bind="Price" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field">
                     <label class="label" for="item-currency">Currency</label>
-                    <input id="item-currency" maxlength="3" @bind="currency" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-currency" class="@Faint(ProductField.Currency)" maxlength="3"
+                           @bind="Currency" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field field--wide">
                     <label class="label" for="item-image">Image link</label>
-                    <input id="item-image" @bind="imageUrl" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-image" class="@Faint(ProductField.ImageUrl)" @bind="ImageUrl" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field field--wide">
@@ -106,25 +114,48 @@
 
 @code {
     [Parameter]
+    public string Header { get; set; } = "Entered by hand";
+
+    /// <summary>The plain sentence shown when a shop refused. No red, no warning icon.</summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>What the scraper recovered, if anything. Null for pure manual entry.</summary>
+    [Parameter]
+    public ScrapeOutcome? Outcome { get; set; }
+
+    /// <summary>Prefills the link when the user pasted one that could not be read.</summary>
+    [Parameter]
+    public string? InitialUrl { get; set; }
+
+    [Parameter]
     public EventCallback<ItemDraft> OnSubmit { get; set; }
 
     [Parameter]
     public EventCallback OnCancel { get; set; }
 
     private string? url;
+    private string? note;
+    private Category category = Category.Other;
+    private int? waitDays;
+    private string? error;
+    private ElementReference firstInput;
+
+    // Fields the scraper may have supplied. Each setter records a touch, so a value the
+    // user has corrected stops rendering as an unverified guess.
+    private readonly HashSet<ProductField> touched = [];
+
     private string? title;
     private string? brand;
     private string? imageUrl;
-    private string? note;
     private decimal? price;
     private string? currency;
-    private Category category = Category.Other;
 
-    // Nullable so clearing the input does not fight the binding with a stale value.
-    private int? waitDays;
-
-    private string? error;
-    private ElementReference urlInput;
+    private string? Title { get => title; set { title = value; touched.Add(ProductField.Title); } }
+    private string? Brand { get => brand; set { brand = value; touched.Add(ProductField.Brand); } }
+    private string? ImageUrl { get => imageUrl; set { imageUrl = value; touched.Add(ProductField.ImageUrl); } }
+    private decimal? Price { get => price; set { price = value; touched.Add(ProductField.Price); } }
+    private string? Currency { get => currency; set { currency = value; touched.Add(ProductField.Currency); } }
 
     protected override async Task OnInitializedAsync()
     {
@@ -132,18 +163,37 @@
 
         waitDays = settings.DefaultWaitDays;
         currency = settings.PreferredCurrency;
+
+        url = InitialUrl;
+
+        if (Outcome?.Info is { } info)
+        {
+            // Assigned to the backing fields, not the properties: prefilling is not the
+            // user touching anything.
+            title = info.Title;
+            brand = info.Brand;
+            imageUrl = info.ImageUrl;
+            price = info.Price;
+            currency = info.Currency ?? settings.PreferredCurrency;
+            url = info.Url;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await urlInput.FocusAsync();
+            await firstInput.FocusAsync();
         }
     }
 
-    /// <summary>Only render an image once the link is a real one, so a half-typed URL
-    /// does not show a broken-image glyph.</summary>
+    /// <summary>
+    /// A value guessed from og:title or microdata renders faint until the user confirms it
+    /// by editing. A value read from Shopify or JSON-LD never does.
+    /// </summary>
+    private string? Faint(ProductField field) =>
+        Outcome is not null && !touched.Contains(field) && Outcome.IsUnverified(field) ? "faint" : null;
+
     private string? PreviewSource()
     {
         var candidate = imageUrl?.Trim();
@@ -162,20 +212,18 @@
             ? Time.GetUtcNow().AddDays(waitDays.Value).ToLocalTime().ToString("d MMM yyyy")
             : null;
 
-    private ItemDraft Draft() => new(
-        url ?? string.Empty,
-        title ?? string.Empty,
-        brand,
-        imageUrl,
-        price,
-        currency ?? string.Empty,
-        category,
-        waitDays ?? 0,
-        note);
-
     private async Task Submit()
     {
-        var draft = Draft();
+        var draft = new ItemDraft(
+            url ?? string.Empty,
+            title ?? string.Empty,
+            brand,
+            imageUrl,
+            price,
+            currency ?? string.Empty,
+            category,
+            waitDays ?? 0,
+            note);
 
         // Same rules the service enforces, so the message here and the guard there can
         // never disagree.

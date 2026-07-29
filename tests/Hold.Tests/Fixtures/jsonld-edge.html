@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!--
+  Hand-authored to cover the JSON-LD shapes the real fixture does not contain.
+
+  jsonld-naadam.html has five ld+json blocks but no @graph, no array-valued @type, and no
+  malformed block. Those are exactly the cases that make a naive parser throw, so they are
+  written out here on purpose:
+
+    block 1 — malformed JSON. Must be swallowed, not thrown.
+    block 2 — an array at the root, containing a non-Product node first.
+    block 3 — @graph, with @type as an ARRAY containing "Product".
+              brand as an object, image as an array, offers as an array using lowPrice,
+              and a European-formatted price string.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Fallback Title That Should Lose To JSON-LD</title>
+
+    <script type="application/ld+json">
+        { "@context": "https://schema.org", "@type": "Product", "name": "Broken,,, }
+    </script>
+
+    <script type="application/ld+json">
+        [
+            { "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [] },
+            { "@context": "https://schema.org", "@type": "Organization", "name": "Not The Product" }
+        ]
+    </script>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                { "@type": "WebSite", "name": "Atelier Nord" },
+                {
+                    "@type": ["Thing", "Product"],
+                    "name": "Wool Overshirt",
+                    "brand": { "@type": "Brand", "name": "Atelier Nord" },
+                    "image": [
+                        "https://cdn.ateliernord.example/overshirt-1.jpg",
+                        "https://cdn.ateliernord.example/overshirt-2.jpg"
+                    ],
+                    "offers": [
+                        {
+                            "@type": "AggregateOffer",
+                            "lowPrice": "1.234,56",
+                            "priceCurrency": "EUR"
+                        }
+                    ]
+                }
+            ]
+        }
+    </script>
+</head>
+<body>
+    <h1>Wool Overshirt</h1>
+</body>
+</html>

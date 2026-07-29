@@ -1,0 +1,118 @@
+@* The add flow: paste, reading, then found or refused. The last two are the same panel. *@
+@inject ProductScraper Scraper
+
+@if (state is State.Paste)
+{
+    <div class="add-panel">
+        <form class="paste" @onsubmit="Read" @onsubmit:preventDefault>
+            <label class="label" for="paste-url">Product link</label>
+
+            <div class="paste__row">
+                <input id="paste-url" @ref="pasteInput" @bind="pasted" @bind:event="oninput"
+                       placeholder="https://" autocomplete="off" />
+                <button type="submit" disabled="@(string.IsNullOrWhiteSpace(pasted))">Read page</button>
+            </div>
+
+            @* Quiet, because it is the fallback, not the invitation. *@
+            <button type="button" class="quiet paste__manual" @onclick="EnterByHand">or enter it by hand</button>
+        </form>
+    </div>
+}
+else if (state is State.Reading)
+{
+    @* The parser chain reporting itself. Real steps, not a fake spinner. *@
+    <div class="add-panel">
+        <p class="panel-head">@(steps.Count > 0 ? steps[0].Text : "Reading")</p>
+
+        <div class="reading">
+            @for (var index = 1; index < steps.Count; index++)
+            {
+                <p class="step @(index == steps.Count - 1 ? "step--current" : null)">
+                    <span>· @steps[index].Text</span>
+                    @if (steps[index].Elapsed is { } elapsed)
+                    {
+                        <span class="step__time">@($"{elapsed.TotalSeconds:0.0}s")</span>
+                    }
+                </p>
+            }
+
+            <div class="reading__rule"></div>
+        </div>
+    </div>
+}
+else
+{
+    <AddItemPanel @key="panelKey"
+                  Header="@Header()"
+                  Message="@outcome?.Message"
+                  Outcome="outcome"
+                  InitialUrl="@pasted"
+                  OnSubmit="OnSubmit"
+                  OnCancel="Reset" />
+}
+
+@code {
+    private enum State { Paste, Reading, Editing }
+
+    [Parameter]
+    public EventCallback<ItemDraft> OnSubmit { get; set; }
+
+    private State state = State.Paste;
+    private string? pasted;
+    private ScrapeOutcome? outcome;
+    private readonly List<ScrapeStep> steps = [];
+    private ElementReference pasteInput;
+    private int panelKey;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The paste field is the empty state, so it is already focused and waiting.
+        if (firstRender && state is State.Paste)
+        {
+            await pasteInput.FocusAsync();
+        }
+    }
+
+    private async Task Read()
+    {
+        if (string.IsNullOrWhiteSpace(pasted))
+        {
+            return;
+        }
+
+        state = State.Reading;
+        steps.Clear();
+
+        // Progress arrives off the render thread, so each step is marshalled back before
+        // touching the component.
+        var progress = new Progress<ScrapeStep>(step =>
+        {
+            steps.Add(step);
+            InvokeAsync(StateHasChanged);
+        });
+
+        outcome = await Scraper.ReadAsync(pasted, progress);
+
+        panelKey++;
+        state = State.Editing;
+    }
+
+    private void EnterByHand()
+    {
+        // Straight to the editable panel with empty fields, as the spec's quiet link says.
+        outcome = null;
+        panelKey++;
+        state = State.Editing;
+    }
+
+    private void Reset()
+    {
+        outcome = null;
+        state = State.Paste;
+    }
+
+    private string Header() =>
+        outcome is not null && outcome.Info.ReadFrom.Count > 0
+            ? outcome.Provenance()
+            : "Entered by hand";
+}

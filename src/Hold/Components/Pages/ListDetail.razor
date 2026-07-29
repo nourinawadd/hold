@@ -42,18 +42,10 @@ else
         <p class="description">@detail.Description</p>
     }
 
-    @if (adding)
-    {
-        <AddItemPanel OnSubmit="Add" OnCancel="() => adding = false" />
-    }
-    else
-    {
-        @* Phase 5 replaces this button with the paste field, which then becomes the
-           empty state in its own right. *@
-        <div class="add-row">
-            <button type="button" @onclick="() => adding = true">Add by hand</button>
-        </div>
-    }
+    @* The paste field is always here, and on an empty list it *is* the empty state —
+       focused and waiting, with no separate call to action. Keyed so a completed add
+       hands back a fresh panel in its paste state. *@
+    <AddItem @key="addKey" OnSubmit="Add" />
 
     @if (items.Count == 0)
     {
@@ -101,7 +93,7 @@ else
 
     private IReadOnlyList<Item> items = [];
     private bool loaded;
-    private bool adding;
+    private int addKey;
 
     // ItemService.Sort already puts waiting first, then oldest first within each group,
     // so filtering here preserves that order.
@@ -127,7 +119,9 @@ else
     private async Task Add(ItemDraft draft)
     {
         await ItemService.AddAsync(Id, draft);
-        adding = false;
+
+        // A new key resets the add flow to its paste state, ready for the next link.
+        addKey++;
 
         // Re-read the list too: the count and the totals both moved.
         await Load();

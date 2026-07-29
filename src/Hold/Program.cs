@@ -1,5 +1,6 @@
 using Hold.Components;
 using Hold.Data;
+using Hold.Scraping;
 using Hold.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,23 @@ builder.Services.AddDbContextFactory<HoldDbContext>(options =>
 builder.Services.AddScoped<ListService>();
 builder.Services.AddScoped<ItemService>();
 builder.Services.AddScoped<SettingsService>();
+
+// A typed client, never `new HttpClient()`: that leaks sockets and pins stale DNS.
+// Shops serve different markup to something that does not look like a browser, so the
+// headers matter as much as the timeout.
+builder.Services.AddHttpClient<ProductScraper>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(12);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+    client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
+    client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = true,
+    MaxAutomaticRedirections = 5,
+});
 
 var app = builder.Build(); // builds the app (everythin before it is resgistered, and everything after it is executed after the app is built)
 

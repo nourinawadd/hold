@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!--
+  Hand-authored, unlike the other three fixtures.
+
+  Six real shops were checked while planning this phase — shopdoen.com, naadam.co,
+  hedleyandbennett.com, allbirds.com, margauxny.com, mejuri.com — and every one returned
+  zero itemprop attributes. Microdata has lost to JSON-LD on the modern web, so there was
+  no real page to save. The parser is still built and still tested, because the spec lists
+  it and older shops do exist.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Brass Reading Lamp — Corvid Supply</title>
+</head>
+<body>
+    <div itemscope itemtype="https://schema.org/Product">
+        <h1 itemprop="name">Brass Reading Lamp</h1>
+
+        <img itemprop="image" src="/media/lamp-brass.jpg" alt="" />
+
+        <div itemprop="brand" itemscope itemtype="https://schema.org/Brand">
+            <span itemprop="name">Corvid Supply</span>
+        </div>
+
+        <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+            <!-- Deliberately formatted with a thousands separator: the price normaliser
+                 has to survive what a real template would emit. -->
+            <span itemprop="price">1,248.00</span>
+            <meta itemprop="priceCurrency" content="GBP" />
+        </div>
+    </div>
+</body>
+</html>
