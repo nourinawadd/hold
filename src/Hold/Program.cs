@@ -27,6 +27,13 @@ builder.Services.AddScoped<ListService>();
 builder.Services.AddScoped<ItemService>();
 builder.Services.AddScoped<SettingsService>();
 
+// The scraper's last-resort strategy. Registered unconditionally but inert without a key —
+// no key means Enabled is false, the parser is left out of the chain, and nothing is
+// billed. Set it in user secrets or the ANTHROPIC__APIKEY environment variable; never
+// commit it.
+builder.Services.AddSingleton<IProductExtractor>(_ =>
+    new ClaudeProductExtractor(builder.Configuration["Anthropic:ApiKey"]));
+
 // A typed client, never `new HttpClient()`: that leaks sockets and pins stale DNS.
 // Shops serve different markup to something that does not look like a browser, so the
 // headers matter as much as the timeout.

@@ -44,6 +44,12 @@ public sealed record ScrapeOutcome(
     public const string OpenGraphName = "page metadata";
     public const string MicrodataName = "microdata";
 
+    /// <summary>Named plainly so the panel header says where the value really came from.</summary>
+    public const string LlmName = "Claude";
+
+    /// <summary>The last resort, and the only one that needs no page at all.</summary>
+    public const string UrlName = "the link";
+
     /// <summary>
     /// True when the value shown for this field is a guess rather than a reading — a title
     /// scraped from og:title, say. Those render faint.

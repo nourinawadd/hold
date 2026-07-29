@@ -26,7 +26,17 @@ public class ProductScraperTests
         // Every refusal ends with the same instruction, because the next move is the same.
         Assert.Contains("Fill in what you know", outcome.Message);
         Assert.Equal(ProductUrl, outcome.Info.Url);
-        Assert.Empty(outcome.Info.ReadFrom);
+
+        // A refusal is no longer empty-handed: the link itself still names the product, so
+        // the panel opens part-filled with a faint title rather than a blank form. The
+        // sentence stays to explain why the fields are thin.
+        Assert.Equal("A Thing", outcome.Info.Title);
+        Assert.Equal([ScrapeOutcome.UrlName], outcome.Info.ReadFrom);
+        Assert.True(outcome.IsUnverified(ProductField.Title));
+
+        // Still nothing invented about money.
+        Assert.Null(outcome.Info.Price);
+        Assert.Null(outcome.Info.Currency);
     }
 
     [Fact]

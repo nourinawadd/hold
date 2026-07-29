@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.6.0" />
+
+    <!-- Not in the CLAUDE.md package list. Added for the scraper's last-resort strategy:
+         when a shop publishes no structured data, the page text is read by a model. Inert
+         and unregistered unless an API key is configured. -->
+    <PackageReference Include="Anthropic" Version="12.39.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <PrivateAssets>all</PrivateAssets>
