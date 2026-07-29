@@ -4,19 +4,51 @@
     @* Buttons must not sit inside this anchor — nesting them is invalid HTML and breaks
        keyboard activation. The actions live as siblings below. *@
     <a class="list-card__open" href="/lists/@List.Id">
+        @* Images first, then a plain block for each remaining item, then dashed outlines for
+           the empty slots. Filling from the left means a list whose only pictured items were
+           saved last still leads with them. *@
         <div class="thumbs">
-            @for (var slot = 0; slot < 5; slot++)
+            @for (var slot = 0; slot < ListService.ThumbnailSlots; slot++)
             {
-                <div class="thumb @(slot < List.ItemCount ? "thumb--filled" : null)"></div>
+                if (slot < List.Images.Count)
+                {
+                    <div class="thumb thumb--image">
+                        <img src="@ProductImage.AtWidth(List.Images[slot], ProductImage.ThumbnailWidth)"
+                             alt="" loading="lazy" />
+                    </div>
+                }
+                else if (slot < List.ItemCount)
+                {
+                    <div class="thumb thumb--filled"></div>
+                }
+                else
+                {
+                    <div class="thumb"></div>
+                }
             }
         </div>
 
         <div class="list-card__foot">
-            <div>
+            <div class="list-card__naming">
                 <h2>@List.Name</h2>
                 <p class="meta">@List.ItemCount products · @Ago(List.UpdatedAt)</p>
             </div>
-            <span class="meta">@Total(List)</span>
+
+            @* One line per currency. Amounts are never combined across currencies, and
+               stacking them keeps a two-currency list from squeezing the name beside it. *@
+            <div class="list-card__totals">
+                @if (List.Totals.Count == 0)
+                {
+                    <span class="meta">—</span>
+                }
+                else
+                {
+                    @foreach (var total in List.Totals)
+                    {
+                        <span class="meta">@($"{total.Amount:N2} {total.Currency}")</span>
+                    }
+                }
+            </div>
         </div>
     </a>
 
@@ -106,9 +138,4 @@
         };
     }
 
-    // One line per currency; amounts are never combined across currencies.
-    private static string Total(ListSummary list) =>
-        list.Totals.Count == 0
-            ? "—"
-            : string.Join(" · ", list.Totals.Select(total => $"{total.Amount:N2} {total.Currency}"));
 }

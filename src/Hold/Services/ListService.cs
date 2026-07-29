@@ -11,7 +11,9 @@ public sealed record ListSummary(
     string Name,
     int ItemCount,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<CurrencyTotal> Totals);
+    IReadOnlyList<CurrencyTotal> Totals,
+    /// <summary>Image URLs for the card's thumbnail strip, already filtered and capped.</summary>
+    IReadOnlyList<string> Images);
 
 public sealed record ListDetail(
     int Id,
@@ -28,6 +30,9 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     // refused with a sentence rather than truncated by SQLite.
     public const int NameMaxLength = 100;
     public const int DescriptionMaxLength = 500;
+
+    /// <summary>Slots in a list card's thumbnail strip.</summary>
+    public const int ThumbnailSlots = 5;
 
     /// <summary>
     /// The one place the naming rules live. The form calls this to show a message; the
@@ -74,8 +79,8 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
                 list.Id,
                 list.Name,
                 list.UpdatedAt,
-                Prices = list.Items
-                    .Select(item => new { item.Price, item.Currency })
+                Items = list.Items
+                    .Select(item => new { item.Price, item.Currency, item.ImageUrl })
                     .ToList(),
             })
             .ToListAsync(cancellationToken);
@@ -88,9 +93,16 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
             .Select(row => new ListSummary(
                 row.Id,
                 row.Name,
-                row.Prices.Count,
+                row.Items.Count,
                 row.UpdatedAt,
-                Totals(row.Prices.Select(entry => (entry.Price, entry.Currency)))))
+                Totals(row.Items.Select(entry => (entry.Price, entry.Currency))),
+                // Only the items that actually have a picture, so the strip fills from the
+                // left whether those items were saved first or last.
+                row.Items
+                    .Select(entry => entry.ImageUrl)
+                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Take(ThumbnailSlots)
+                    .ToList()!))
             .ToList();
     }
 

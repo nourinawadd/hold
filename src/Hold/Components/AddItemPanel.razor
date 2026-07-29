@@ -19,7 +19,7 @@
             <div class="preview">
                 @if (PreviewSource() is { } source)
                 {
-                    <img src="@source" alt="" />
+                    <img src="@ProductImage.AtWidth(source, ProductImage.CardWidth)" alt="" />
                 }
                 else
                 {
