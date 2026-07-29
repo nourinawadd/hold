@@ -1,0 +1,60 @@
+/* All items — every item across every list, filtered and searched. */
+
+.page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--ink);
+}
+
+.page-head__right {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+}
+
+/* Divides the lists a search matched from the items it matched. */
+.section {
+    margin: 2rem 0 1rem;
+    padding-top: 0.75rem;
+    border-top: 0.5px solid var(--hairline);
+}
+
+.section:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 1.5rem;
+}
+
+.item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 1.5rem;
+}
+
+.nothing {
+    padding: 2rem 0;
+    color: var(--mute);
+}
+
+@media (max-width: 640px) {
+    .list-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .item-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+}

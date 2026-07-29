@@ -52,7 +52,13 @@
         </div>
     </a>
 
-    @if (confirming)
+    @* No actions unless the parent wired them. On the all-items view these cards are
+       navigation, and a Delete that silently did nothing would be worse than no Delete. *@
+    @if (!Editable)
+    {
+        // Nothing — the card is a link and only a link.
+    }
+    else if (confirming)
     {
         <div class="list-card__confirm">
             <p class="confirm-question">@Question()</p>
@@ -92,6 +98,12 @@
     private bool confirming;
     private bool pendingFocus;
     private ElementReference confirmButton;
+
+    /// <summary>
+    /// True only when the parent actually handles the actions. HasDelegate is the honest
+    /// test — an unwired EventCallback silently swallows the click.
+    /// </summary>
+    private bool Editable => OnRename.HasDelegate || OnDelete.HasDelegate;
 
     private void Ask()
     {

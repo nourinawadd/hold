@@ -20,6 +20,38 @@
     text-decoration: none;
 }
 
+/* Two destinations. The current one is ink, the other mute — no underline, no box. */
+
+.topnav {
+    display: flex;
+    gap: 1.5rem;
+    margin-left: 2.5rem;
+}
+
+::deep .topnav__link {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+::deep .topnav__link:hover {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+::deep .topnav__link.active {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+@media (max-width: 640px) {
+    .topnav {
+        margin-left: 1.5rem;
+        gap: 1rem;
+    }
+}
+
 .content {
     display: block;
     max-width: 72rem;
