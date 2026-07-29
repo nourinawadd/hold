@@ -1,0 +1,100 @@
+@page "/lists/{Id:int}"
+@inject ListService ListService
+
+<PageTitle>@(detail?.Name ?? "List") — Hold</PageTitle>
+
+@if (!loaded)
+{
+    <p class="meta">Loading</p>
+}
+else if (detail is null)
+{
+    @* Deleted, or a bad link. A plain sentence — no red, no error styling. *@
+    <a class="back" href="/lists">← Lists</a>
+
+    <div class="page-head">
+        <h1>Not here</h1>
+    </div>
+
+    <p class="missing">That list has been deleted, or the link is wrong.</p>
+}
+else
+{
+    <a class="back" href="/lists">← Lists</a>
+
+    <div class="page-head">
+        <h1>@detail.Name</h1>
+
+        <div class="page-head__right">
+            <span class="meta">@Count()</span>
+            <span class="meta">@Totals()</span>
+
+            @if (Budget() is { } budget)
+            {
+                <span class="meta">@budget</span>
+            }
+        </div>
+    </div>
+
+    @if (detail.Description is not null)
+    {
+        <p class="description">@detail.Description</p>
+    }
+
+    @if (detail.ItemCount == 0)
+    {
+        @* The paste field arrives in phase 5 and becomes the real empty state. Until then
+           the ghost slots stand alone. *@
+        <div class="ghosts">
+            @for (var slot = 0; slot < 4; slot++)
+            {
+                <div class="ghost"></div>
+            }
+        </div>
+    }
+    else
+    {
+        @* Placeholder. Phase 4 replaces this with the ItemCard grid — rendering titles
+           now keeps the page honest about lists that already hold items. *@
+        <ul class="titles">
+            @foreach (var title in detail.ItemTitles)
+            {
+                <li>@title</li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    // Qualified: this page compiles to a class also called ListDetail, which would
+    // otherwise shadow the record the service returns.
+    private Hold.Services.ListDetail? detail;
+
+    private bool loaded;
+
+    // OnParametersSetAsync, not OnInitializedAsync: navigating between two list ids reuses
+    // this component instance, and OnInitialized would not run again.
+    protected override async Task OnParametersSetAsync()
+    {
+        loaded = false;
+        detail = await ListService.GetDetailAsync(Id);
+        loaded = true;
+    }
+
+    private string Count() => detail!.ItemCount == 1 ? "1 item" : $"{detail.ItemCount} items";
+
+    // One figure per currency; amounts are never combined across currencies.
+    private string Totals() =>
+        detail!.Totals.Count == 0
+            ? "—"
+            : string.Join(" · ", detail.Totals.Select(total => $"{total.Amount:N2} {total.Currency}"));
+
+    // One line of text. The budget bar itself is phase 7.
+    private string? Budget() =>
+        detail!.BudgetAmount is { } amount && detail.BudgetCurrency is { } currency
+            ? $"Budget {amount:N2} {currency}"
+            : null;
+}

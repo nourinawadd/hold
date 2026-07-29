@@ -5,59 +5,140 @@
 
 <PageTitle>Lists — Hold</PageTitle>
 
-<div class="page-head">
-    <h1>Lists</h1>
-    <span class="meta">@summaries.Count lists · @summaries.Sum(l => l.ItemCount) items</span>
-</div>
+@if (summaries.Count == 0 && mode is Mode.None)
+{
+    @* The heading is an instruction, never "Nothing here yet". *@
+    <div class="empty">
+        <h1>Start a list</h1>
 
-<div class="list-grid">
-    @foreach (var list in summaries)
+        <p class="empty__line">
+            Save something you want, choose how long to wait, and Hold counts the days.
+        </p>
+
+        <button type="button" @onclick="() => StartCreate()">New list</button>
+
+        <div class="empty__suggestions">
+            <span class="label">Or start with</span>
+
+            @foreach (var suggestion in ListForm.Suggestions)
+            {
+                <button type="button" class="chip" @onclick="() => StartCreate(suggestion)">@suggestion</button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <h1>Lists</h1>
+
+        <div class="page-head__right">
+            <span class="meta">@summaries.Count lists · @summaries.Sum(list => list.ItemCount) items</span>
+            <button type="button" @onclick="() => StartCreate()">New list</button>
+        </div>
+    </div>
+
+    @if (mode is not Mode.None)
     {
-        <article class="list-card">
-            <div class="thumbs">
-                @for (var slot = 0; slot < 5; slot++)
-                {
-                    <div class="thumb @(slot < list.ItemCount ? "thumb--filled" : null)"></div>
-                }
-            </div>
-
-            <div class="list-card__foot">
-                <div>
-                    <h2>@list.Name</h2>
-                    <p class="meta">@list.ItemCount products · @Ago(list.UpdatedAt)</p>
-                </div>
-                <span class="meta">@Total(list)</span>
-            </div>
-        </article>
+        @* Keyed on what it was opened for: the form seeds its fields once, so switching
+           between create and rename must hand it a fresh instance. *@
+        <ListForm @key="(mode, editId, prefillName)"
+                  SubmitLabel="@(mode is Mode.Create ? "Create" : "Save")"
+                  InitialName="@prefillName"
+                  InitialDescription="@prefillDescription"
+                  ShowSuggestions="showSuggestions"
+                  OnSubmit="Save"
+                  OnCancel="Close" />
     }
-</div>
+
+    // Read once per render so every card agrees on what "6 hours ago" means.
+    var now = Time.GetUtcNow();
+
+    <div class="list-grid">
+        @foreach (var list in summaries)
+        {
+            <ListCard @key="list.Id"
+                      List="list"
+                      Now="now"
+                      OnRename="StartRename"
+                      OnDelete="Delete" />
+        }
+    </div>
+}
 
 @code {
+    private enum Mode { None, Create, Rename }
+
     private IReadOnlyList<ListSummary> summaries = [];
 
-    protected override async Task OnInitializedAsync()
+    private Mode mode = Mode.None;
+    private int editId;
+    private string? prefillName;
+    private string? prefillDescription;
+    private bool showSuggestions;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private void StartCreate(string? withName = null)
     {
-        summaries = await ListService.GetSummariesAsync();
+        mode = Mode.Create;
+        editId = 0;
+        prefillName = withName;
+        prefillDescription = null;
+
+        // A blank form offers the four names; one opened from a suggestion already has one.
+        showSuggestions = withName is null;
     }
 
-    private string Ago(DateTimeOffset when)
+    private async Task StartRename(int id)
     {
-        var elapsed = Time.GetUtcNow() - when;
+        // Description is not carried on the card, so it is fetched for the prefill.
+        var detail = await ListService.GetDetailAsync(id);
 
-        return elapsed switch
+        if (detail is null)
         {
-            { TotalMinutes: < 2 } => "just now",
-            { TotalHours: < 1 } => $"{(int)elapsed.TotalMinutes} minutes ago",
-            { TotalHours: < 24 } => $"{(int)elapsed.TotalHours} hours ago",
-            { TotalDays: < 30 } => $"{(int)elapsed.TotalDays} days ago",
-            // Stored as UTC, so format in local time or the date slips near midnight.
-            _ => when.ToLocalTime().ToString("d MMM yyyy"),
-        };
+            // Deleted in another tab. Refresh rather than open a form over nothing.
+            await Reload();
+            return;
+        }
+
+        mode = Mode.Rename;
+        editId = id;
+        prefillName = detail.Name;
+        prefillDescription = detail.Description;
+        showSuggestions = false;
     }
 
-    // One line per currency; amounts are never combined across currencies.
-    private static string Total(ListSummary list) =>
-        list.Totals.Count == 0
-            ? "—"
-            : string.Join(" · ", list.Totals.Select(total => $"{total.Amount:N2} {total.Currency}"));
+    private void Close() => mode = Mode.None;
+
+    private async Task Save((string Name, string? Description) input)
+    {
+        if (mode is Mode.Create)
+        {
+            await ListService.CreateAsync(input.Name, input.Description);
+        }
+        else
+        {
+            await ListService.RenameAsync(editId, input.Name, input.Description);
+        }
+
+        Close();
+        await Reload();
+    }
+
+    private async Task Delete(int id)
+    {
+        await ListService.DeleteAsync(id);
+
+        // If the open form was editing the list that just went, close it.
+        if (mode is Mode.Rename && editId == id)
+        {
+            Close();
+        }
+
+        await Reload();
+    }
+
+    // Re-queried after every mutation so counts, totals, and order stay truthful.
+    private async Task Reload() => summaries = await ListService.GetSummariesAsync();
 }

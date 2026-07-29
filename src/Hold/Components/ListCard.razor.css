@@ -1,0 +1,96 @@
+/* List card — moved here from Lists.razor.css when the card became its own component,
+   because scoped styles only reach the component they sit beside. */
+
+.list-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--paper);
+    border: 0.5px solid var(--hairline);
+}
+
+/* The card body is one link to the list. */
+
+.list-card__open {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.list-card__open:hover {
+    text-decoration: none;
+}
+
+/* Underline the name alone, not every line in the card. */
+.list-card__open:hover h2 {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+/* Five-slot thumbnail strip: filled slots are solid, empty slots dashed. */
+
+.thumbs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+}
+
+.thumb {
+    aspect-ratio: 1;
+    border: 0.5px dashed var(--hairline);
+}
+
+.thumb--filled {
+    background: var(--bone);
+    border: 0.5px solid var(--hairline);
+}
+
+.list-card__foot {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: auto;
+}
+
+.list-card__foot h2 {
+    margin-bottom: 0.35rem;
+}
+
+/* Direct child only — the total, not the product line nested beside the name. */
+.list-card__foot > .meta {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Actions, and the confirmation that replaces them in place. */
+
+.list-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 0.5px solid var(--hairline);
+}
+
+.list-card__confirm {
+    padding-top: 0.75rem;
+    border-top: 0.5px solid var(--hairline);
+}
+
+/* Ink, not red. Red means permission and nothing else. */
+.confirm-question {
+    margin-bottom: 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+}
+
+.list-card__confirm .list-card__actions {
+    padding-top: 0;
+    border-top: none;
+}

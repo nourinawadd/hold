@@ -13,8 +13,53 @@ public sealed record ListSummary(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<CurrencyTotal> Totals);
 
-public sealed class ListService(IDbContextFactory<HoldDbContext> factory)
+public sealed record ListDetail(
+    int Id,
+    string Name,
+    string? Description,
+    decimal? BudgetAmount,
+    string? BudgetCurrency,
+    int ItemCount,
+    IReadOnlyList<CurrencyTotal> Totals,
+    // Placeholder until phase 4 renders items properly. See ListDetail.razor.
+    IReadOnlyList<string> ItemTitles);
+
+public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
 {
+    // Mirrors the column limits in HoldDbContext.OnModelCreating, so an over-long value is
+    // refused with a sentence rather than truncated by SQLite.
+    public const int NameMaxLength = 100;
+    public const int DescriptionMaxLength = 500;
+
+    /// <summary>
+    /// The one place the naming rules live. The form calls this to show a message; the
+    /// mutations below call it again so a bad value cannot reach the database by another
+    /// route.
+    /// </summary>
+    public static string? DescribeProblem(string? name, string? description)
+    {
+        var trimmedName = name?.Trim();
+
+        if (string.IsNullOrEmpty(trimmedName))
+        {
+            return "A list needs a name.";
+        }
+
+        if (trimmedName.Length > NameMaxLength)
+        {
+            return $"That name is {trimmedName.Length} characters. Keep it under {NameMaxLength}.";
+        }
+
+        var trimmedDescription = description?.Trim();
+
+        if (trimmedDescription?.Length > DescriptionMaxLength)
+        {
+            return $"That description is {trimmedDescription.Length} characters. Keep it under {DescriptionMaxLength}.";
+        }
+
+        return null;
+    }
+
     public async Task<IReadOnlyList<ListSummary>> GetSummariesAsync(
         CancellationToken cancellationToken = default)
     {
@@ -47,12 +92,154 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory)
                 row.Name,
                 row.Prices.Count,
                 row.UpdatedAt,
-                row.Prices
-                    .Where(entry => entry.Price.HasValue)
-                    .GroupBy(entry => entry.Currency)
-                    .Select(group => new CurrencyTotal(group.Key, group.Sum(entry => entry.Price!.Value)))
-                    .OrderBy(total => total.Currency)
-                    .ToList()))
+                Totals(row.Prices.Select(entry => (entry.Price, entry.Currency)))))
             .ToList();
     }
+
+    public async Task<ListDetail?> GetDetailAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        // Items are left in natural key order: SavedAt is a DateTimeOffset, which SQLite
+        // cannot sort, and the real ordering rule (ready first, then days waited) is
+        // phase 6's to define.
+        var row = await db.WishLists
+            .AsNoTracking()
+            .Where(list => list.Id == id && list.OwnerId == WishList.DefaultOwnerId)
+            .Select(list => new
+            {
+                list.Id,
+                list.Name,
+                list.Description,
+                list.BudgetAmount,
+                list.BudgetCurrency,
+                Items = list.Items
+                    .Select(item => new { item.Title, item.Price, item.Currency })
+                    .ToList(),
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        return new ListDetail(
+            row.Id,
+            row.Name,
+            row.Description,
+            row.BudgetAmount,
+            row.BudgetCurrency,
+            row.Items.Count,
+            Totals(row.Items.Select(item => (item.Price, item.Currency))),
+            row.Items.Select(item => item.Title).ToList());
+    }
+
+    public async Task<int> CreateAsync(
+        string name,
+        string? description,
+        CancellationToken cancellationToken = default)
+    {
+        Guard(name, description);
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var now = time.GetUtcNow();
+
+        var list = new WishList
+        {
+            Name = name.Trim(),
+            Description = Clean(description),
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        db.WishLists.Add(list);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return list.Id;
+    }
+
+    /// <summary>Returns false when the list no longer exists — a stale card, not an error.</summary>
+    public async Task<bool> RenameAsync(
+        int id,
+        string name,
+        string? description,
+        CancellationToken cancellationToken = default)
+    {
+        Guard(name, description);
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var list = await db.WishLists.SingleOrDefaultAsync(
+            row => row.Id == id && row.OwnerId == WishList.DefaultOwnerId,
+            cancellationToken);
+
+        if (list is null)
+        {
+            return false;
+        }
+
+        list.Name = name.Trim();
+        list.Description = Clean(description);
+
+        // A rename counts as activity, so the card carries a fresh time and rises to the
+        // top of the grid.
+        list.UpdatedAt = time.GetUtcNow();
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var list = await db.WishLists.SingleOrDefaultAsync(
+            row => row.Id == id && row.OwnerId == WishList.DefaultOwnerId,
+            cancellationToken);
+
+        if (list is null)
+        {
+            return false;
+        }
+
+        // The items go with it, by the cascade configured in HoldDbContext.
+        db.WishLists.Remove(list);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    private static void Guard(string? name, string? description)
+    {
+        var problem = DescribeProblem(name, description);
+
+        if (problem is not null)
+        {
+            throw new ArgumentException(problem, nameof(name));
+        }
+    }
+
+    private static string? Clean(string? description)
+    {
+        var trimmed = description?.Trim();
+
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    /// <summary>
+    /// Grouped in memory on purpose. Callers must have materialised their rows first —
+    /// decimal is TEXT in SQLite, so a SQL SUM would coerce money to a float.
+    /// </summary>
+    private static List<CurrencyTotal> Totals(IEnumerable<(decimal? Price, string Currency)> items) =>
+        items
+            .Where(item => item.Price.HasValue)
+            .GroupBy(item => item.Currency)
+            .Select(group => new CurrencyTotal(group.Key, group.Sum(item => item.Price!.Value)))
+            .OrderBy(total => total.Currency)
+            .ToList();
 }

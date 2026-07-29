@@ -114,6 +114,43 @@ button:hover,
     text-decoration: none;
 }
 
+/* Quiet control — a secondary action that reads as a label until you reach for it.
+   Used for rename, cancel, and anything that should not compete with the primary. */
+
+button.quiet {
+    padding: 0.6rem 0;
+    color: var(--mute);
+    background: transparent;
+    border-color: transparent;
+}
+
+button.quiet:hover {
+    color: var(--ink);
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+/* Chip — a suggested value you can take with one click. Sentence case, because these are
+   names to be used verbatim rather than labels. */
+
+.chip {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: none;
+    color: var(--ink);
+    background: transparent;
+    border: 0.5px solid var(--hairline);
+}
+
+.chip:hover {
+    color: var(--bone);
+    background: var(--ink);
+    border-color: var(--ink);
+    text-decoration: none;
+}
+
 input,
 select,
 textarea {

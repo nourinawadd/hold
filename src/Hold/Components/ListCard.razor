@@ -1,0 +1,114 @@
+@* One list in the grid. Owns its delete confirmation; the parent owns the data. *@
+
+<article class="list-card">
+    @* Buttons must not sit inside this anchor — nesting them is invalid HTML and breaks
+       keyboard activation. The actions live as siblings below. *@
+    <a class="list-card__open" href="/lists/@List.Id">
+        <div class="thumbs">
+            @for (var slot = 0; slot < 5; slot++)
+            {
+                <div class="thumb @(slot < List.ItemCount ? "thumb--filled" : null)"></div>
+            }
+        </div>
+
+        <div class="list-card__foot">
+            <div>
+                <h2>@List.Name</h2>
+                <p class="meta">@List.ItemCount products · @Ago(List.UpdatedAt)</p>
+            </div>
+            <span class="meta">@Total(List)</span>
+        </div>
+    </a>
+
+    @if (confirming)
+    {
+        <div class="list-card__confirm">
+            <p class="confirm-question">@Question()</p>
+
+            <div class="list-card__actions">
+                <button type="button" @ref="confirmButton" @onclick="Confirm">Delete</button>
+                <button type="button" class="quiet" @onclick="() => confirming = false">Cancel</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="list-card__actions">
+            <button type="button" class="quiet" @onclick="() => OnRename.InvokeAsync(List.Id)">Rename</button>
+            <button type="button" class="quiet" @onclick="Ask">Delete</button>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public ListSummary List { get; set; } = null!;
+
+    /// <summary>
+    /// Passed down rather than read from an injected TimeProvider, so every card in a
+    /// render agrees on what "6 hours ago" means.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnRename { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnDelete { get; set; }
+
+    private bool confirming;
+    private bool pendingFocus;
+    private ElementReference confirmButton;
+
+    private void Ask()
+    {
+        confirming = true;
+        pendingFocus = true;
+    }
+
+    private Task Confirm() => OnDelete.InvokeAsync(List.Id);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!pendingFocus)
+        {
+            return;
+        }
+
+        // Cleared before awaiting: FocusAsync triggers another render, and leaving the flag
+        // set would fight the user for the caret on every one of them.
+        pendingFocus = false;
+        await confirmButton.FocusAsync();
+    }
+
+    // Naming what goes with the list is the whole point of the confirmation — deleting a
+    // list cascades to its items.
+    private string Question() => List.ItemCount switch
+    {
+        0 => $"Delete {List.Name}?",
+        1 => $"Delete {List.Name} and its 1 item?",
+        _ => $"Delete {List.Name} and its {List.ItemCount} items?",
+    };
+
+    private string Ago(DateTimeOffset when)
+    {
+        var elapsed = Now - when;
+
+        return elapsed switch
+        {
+            { TotalMinutes: < 2 } => "just now",
+            { TotalHours: < 1 } => $"{(int)elapsed.TotalMinutes} minutes ago",
+            { TotalHours: < 24 } => $"{(int)elapsed.TotalHours} hours ago",
+            { TotalDays: < 30 } => $"{(int)elapsed.TotalDays} days ago",
+            // Stored as UTC, so format in local time or the date slips near midnight.
+            _ => when.ToLocalTime().ToString("d MMM yyyy"),
+        };
+    }
+
+    // One line per currency; amounts are never combined across currencies.
+    private static string Total(ListSummary list) =>
+        list.Totals.Count == 0
+            ? "—"
+            : string.Join(" · ", list.Totals.Select(total => $"{total.Amount:N2} {total.Currency}"));
+}

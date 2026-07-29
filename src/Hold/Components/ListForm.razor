@@ -1,0 +1,99 @@
+@* Create and rename share this panel. Rename opens it with the fields prefilled. *@
+
+<form class="list-form" @onsubmit="Submit" @onsubmit:preventDefault>
+    <div class="field">
+        <label class="label" for="list-name">Name</label>
+        @* No maxlength: let an over-long name reach the validator, so the limit is
+           explained once rather than silently enforced by a control that stops typing. *@
+        <input id="list-name" @ref="nameInput" @bind="name" @bind:event="oninput" autocomplete="off" />
+    </div>
+
+    <div class="field">
+        <label class="label" for="list-description">Description — optional</label>
+        <input id="list-description" @bind="description" @bind:event="oninput" autocomplete="off" />
+    </div>
+
+    @if (ShowSuggestions)
+    {
+        <div class="suggestions">
+            <span class="label">Try</span>
+
+            @foreach (var suggestion in Suggestions)
+            {
+                <button type="button" class="chip" @onclick="() => name = suggestion">@suggestion</button>
+            }
+        </div>
+    }
+
+    @if (error is not null)
+    {
+        @* Ink, never red. Red means permission. *@
+        <p class="form-error" role="alert">@error</p>
+    }
+
+    <div class="list-form__actions">
+        <button type="submit">@SubmitLabel</button>
+        <button type="button" class="quiet" @onclick="OnCancel">Cancel</button>
+    </div>
+</form>
+
+@code {
+    /// <summary>
+    /// The four names from the spec's empty state, offered as one-click fills. Public so
+    /// the empty state on Lists.razor offers the same four without a second copy.
+    /// </summary>
+    public static readonly string[] Suggestions = ["Wishlist", "Gifts", "Travel", "Home"];
+
+    [Parameter]
+    public string SubmitLabel { get; set; } = "Create";
+
+    [Parameter]
+    public string? InitialName { get; set; }
+
+    [Parameter]
+    public string? InitialDescription { get; set; }
+
+    [Parameter]
+    public bool ShowSuggestions { get; set; }
+
+    [Parameter]
+    public EventCallback<(string Name, string? Description)> OnSubmit { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private string? name;
+    private string? description;
+    private string? error;
+    private ElementReference nameInput;
+
+    // Seeded once. Doing this in OnParametersSet would overwrite what the user is typing
+    // every time the parent re-renders.
+    protected override void OnInitialized()
+    {
+        name = InitialName;
+        description = InitialDescription;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await nameInput.FocusAsync();
+        }
+    }
+
+    private async Task Submit()
+    {
+        // Same rules the service enforces, so the message here and the guard there can
+        // never disagree.
+        error = ListService.DescribeProblem(name, description);
+
+        if (error is not null)
+        {
+            return;
+        }
+
+        await OnSubmit.InvokeAsync((name!.Trim(), description));
+    }
+}
