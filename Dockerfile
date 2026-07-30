@@ -12,7 +12,13 @@ COPY src/Hold/Hold.csproj src/Hold/
 RUN dotnet restore src/Hold/Hold.csproj
 
 COPY src/ src/
-RUN dotnet publish src/Hold/Hold.csproj -c Release -o /app --no-restore
+
+# Not --no-restore, however redundant it looks after the restore above. Skipping restore here
+# also skips the step that registers the framework's static web assets: blazor.web.js never
+# reaches wwwroot/_framework, the page still prerenders, and every button is silently dead.
+# The packages are already in the image from the layer above, so this is a cache hit, not a
+# download.
+RUN dotnet publish src/Hold/Hold.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

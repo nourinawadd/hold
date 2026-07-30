@@ -13,7 +13,7 @@
                 if (slot < List.Images.Count)
                 {
                     <div class="thumb thumb--image">
-                        <img src="@ProductImage.AtWidth(List.Images[slot], ProductImage.ThumbnailWidth)"
+                        <img src="@ProductImage.AtWidth(List.Images[slot], ImageWidth)"
                              alt="" loading="lazy" />
                     </div>
                 }
@@ -88,6 +88,14 @@
     /// </summary>
     [Parameter, EditorRequired]
     public DateTimeOffset Now { get; set; }
+
+    /// <summary>
+    /// How wide a thumbnail to ask the shop's CDN for. A parameter rather than a constant
+    /// because the same card is drawn at two sizes: full width on Lists, and in a narrow grid
+    /// on All items, which would be downloading pictures four times larger than it draws.
+    /// </summary>
+    [Parameter]
+    public int ImageWidth { get; set; } = ProductImage.ThumbnailWidth;
 
     [Parameter]
     public EventCallback<int> OnRename { get; set; }

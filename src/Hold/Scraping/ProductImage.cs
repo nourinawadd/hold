@@ -15,6 +15,13 @@ public static class ProductImage
     /// <summary>Roughly twice the drawn size, so the picture stays sharp on a dense screen.</summary>
     public const int ThumbnailWidth = 160;
 
+    /// <summary>
+    /// The same strip on the Lists page, where a card spans the content column and each slot
+    /// draws at about 208px. Asking for 160 there would upscale — the picture would be softer
+    /// on the larger card than on the small one, which is backwards.
+    /// </summary>
+    public const int StripWidth = 420;
+
     /// <summary>For an item card and the add panel's preview.</summary>
     public const int CardWidth = 480;
 

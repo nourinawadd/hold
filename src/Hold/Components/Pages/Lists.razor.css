@@ -17,10 +17,15 @@
     gap: 1.5rem;
 }
 
+/* One card per row, each spanning the content column. The thumbnail strip is the reason:
+   five slots across 17rem drew each picture at about 40px, which is a swatch rather than a
+   product. Across the full 68rem they draw at roughly 208px and the item is legible. The
+   cost is scrolling, and it is worth it — this page is looked at, not scanned. */
+
 .list-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: 1fr;
+    gap: 2rem;
 }
 
 /* Empty state — an instruction and four ways to take it. */
