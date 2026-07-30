@@ -125,8 +125,9 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
-        // No OrderBy in the query: SavedAt is a DateTimeOffset and Price is TEXT, neither
-        // of which SQLite can sort meaningfully. Materialise first, then sort below.
+        // No OrderBy in the query. The sort key is readiness, which is computed from SavedAt and
+        // WaitDays at the moment of the query rather than stored, so it is not a column any
+        // database could order by. Materialise first, then sort below.
         var items = await db.Items
             .AsNoTracking()
             .Where(item => item.WishListId == listId)
@@ -153,9 +154,10 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
             .Where(item => item.WishList.OwnerId == WishList.DefaultOwnerId)
             .ToListAsync(cancellationToken);
 
-        // Filtering in memory, which the money and date rules already force — and which
-        // keeps matching identical to what the tests exercise rather than at the mercy of
-        // SQLite's collation.
+        // Filtering in memory, which the sort already requires. It is also the only way to keep
+        // the accent rule below: Postgres cannot match "doen" against "Dôen" without the
+        // unaccent extension, which a managed instance will not necessarily have enabled. Doing
+        // it here keeps matching identical to what the tests exercise, on any database.
         return Sort(
             items.Where(item =>
                 (filter.Category is null || item.Category == filter.Category)

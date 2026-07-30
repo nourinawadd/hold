@@ -12,6 +12,12 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+
+    <!-- Not used by any test directly. Stated to pin the version: the Npgsql provider asks only
+         for EF Core 10.0.4 or later, so without this the tests resolve that floor while Hold is
+         compiled against the 10.0.10 that its Design package pulls in — a mismatch MSBuild
+         reports as MSB3277. Keep in step with Hold.csproj. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>

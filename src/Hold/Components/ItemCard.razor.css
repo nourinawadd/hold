@@ -38,6 +38,11 @@
 
 .item-card__body h3 {
     margin-bottom: 0.1rem;
+
+    /* At 380px the item grid is two columns of about 162px. A title with one long unbroken
+       token — exactly what UrlSlugParser yields from a blocked shop — would otherwise push out
+       of the card and scroll the whole page sideways. */
+    overflow-wrap: anywhere;
 }
 
 .item-card__image:hover + .item-card__body h3 {
@@ -52,6 +57,9 @@
 .item-card__note {
     color: var(--mute);
     font-style: italic;
+
+    /* Free text the user typed — it can contain anything, including a pasted URL. */
+    overflow-wrap: anywhere;
 }
 
 /* Which list this belongs to — shown only on /items. */

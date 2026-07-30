@@ -1,0 +1,78 @@
+# docker compose up --build
+#
+# Two services: the app, and the Postgres it talks to. The app is disposable; the volume under
+# Postgres is the memory — remove it and every list is gone.
+#
+# For local development without containers, run `docker compose up postgres` on its own and
+# `dotnet run` against it. appsettings.Development.json already points at this database.
+
+services:
+  hold:
+    build: .
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      # The name the host would use, so local and deployed read their configuration the same way.
+      # postgres resolves to the service below on compose's own network.
+      DATABASE_URL: "postgresql://hold:hold@postgres:5432/hold"
+
+      # Production: migrations still run at startup, but DevDataSeeder does not. A fresh database
+      # comes up as an empty app rather than one holding invented lists.
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_HTTP_PORTS: "8080"
+
+      # Scraper logging at Information so the recovery ladder is visible; the framework's own
+      # per-request chatter stays at Warning.
+      Logging__LogLevel__Default: "Information"
+      Logging__LogLevel__Microsoft.AspNetCore: "Warning"
+
+      # The scraper's last-resort strategy, off unless a key is supplied. Set it in a .env file
+      # beside this one — never commit it.
+      Anthropic__ApiKey: "${ANTHROPIC_API_KEY:-}"
+
+    depends_on:
+      postgres:
+        # Not merely started: Postgres accepts connections only after it has finished
+        # initialising, and the app migrates immediately on boot.
+        condition: service_healthy
+
+    healthcheck:
+      # /health opens the database, so a pass means Postgres is genuinely reachable — not merely
+      # that the process is up. curl is installed in the runtime stage for exactly this.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: hold
+      POSTGRES_USER: hold
+      # Local development only. The deployed password lives in the host's dashboard and never
+      # in this file.
+      POSTGRES_PASSWORD: hold
+
+    ports:
+      # Published so `dotnet run` and `dotnet ef` on the host can reach it too.
+      - "5432:5432"
+
+    volumes:
+      - hold-postgres:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hold -d hold"]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+
+volumes:
+  # Named, not a bind mount: Docker manages it and it survives `down`. `down -v` destroys it.
+  hold-postgres:

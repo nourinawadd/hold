@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Hold.Scraping;
 
@@ -17,16 +18,22 @@ public sealed class ProductScraper
     private const string FallThrough = "Fill in what you know — the link is saved.";
 
     private readonly HttpClient http;
+    private readonly ILogger<ProductScraper> log;
     private readonly PageRecovery recovery;
     private readonly IProductParser[] parsers;
 
     /// <summary>
     /// <paramref name="extractor"/> is optional: without one the chain skips the model and
-    /// runs on structured data and the URL alone.
+    /// runs on structured data and the URL alone. <paramref name="logger"/> is optional so a
+    /// test can construct a scraper with nothing but an HttpClient.
     /// </summary>
-    public ProductScraper(HttpClient http, IProductExtractor? extractor = null)
+    public ProductScraper(
+        HttpClient http,
+        IProductExtractor? extractor = null,
+        ILogger<ProductScraper>? logger = null)
     {
         this.http = http;
+        this.log = logger ?? NullLogger<ProductScraper>.Instance;
         this.recovery = new PageRecovery(http);
 
         extractor ??= NoExtractor.Instance;
@@ -102,6 +109,11 @@ public sealed class ProductScraper
                     failure = exception is HttpRequestException http
                         ? Explain(http.StatusCode)
                         : $"The shop took too long to answer. {FallThrough}";
+
+                    log.LogInformation(
+                        exception,
+                        "Shopify endpoint failed for {Host}; continuing down the ladder.",
+                        url.Host);
                 }
             }
 
@@ -123,6 +135,11 @@ public sealed class ProductScraper
                     // Remembered, not thrown: a refusal here is the reason to start the
                     // recovery ladder, not the end of the attempt.
                     failure = Explain(exception.StatusCode);
+
+                    log.LogWarning(
+                        "{Host} refused the page with {Status}.",
+                        url.Host,
+                        exception.StatusCode);
                 }
 
                 // Ladder, in order of how much the answer can be trusted. Each rung only
@@ -135,6 +152,10 @@ public sealed class ProductScraper
                     if (recovered is not null)
                     {
                         progress?.Report(new ScrapeStep($"Recovered from {recovered.Via}"));
+
+                        // A fallback that worked is normal operation, not a problem.
+                        log.LogInformation(
+                            "Recovered {Host} from {Via}.", url.Host, recovered.Via);
 
                         html = recovered.Html;
 
@@ -192,11 +213,22 @@ public sealed class ProductScraper
         {
             // HttpClient reports its own timeout as a cancellation.
             failure = $"The shop took too long to answer. {FallThrough}";
+
+            log.LogWarning("{Host} did not answer within the timeout.", url.Host);
         }
         finally
         {
             document?.Dispose();
         }
+
+        // What the user ends up with, in one line. The whole ladder is reconstructable from
+        // this plus the entries above.
+        log.LogInformation(
+            "Read {Host}: {Fields} from {Sources}.{Outcome}",
+            url.Host,
+            merged.Nothing ? "nothing" : string.Join("+", merged.FieldNames()),
+            merged.Nothing ? "no source" : string.Join("+", merged.SourceNames()),
+            failure is null ? string.Empty : $" Fell through: {failure}");
 
         // A failure only refuses when it left us with nothing. Margaux answers the .js
         // endpoint and then 404s the page it came from; throwing away a good Shopify read
@@ -245,6 +277,13 @@ public sealed class ProductScraper
         if (PageRecovery.IsChallenge(html))
         {
             progress?.Report(new ScrapeStep("Shop answered with a checkpoint, not the page", clock.Elapsed));
+
+            // A 200 that is not the page. Worth a warning precisely because the status code
+            // says everything is fine.
+            log.LogWarning(
+                "{Host} answered 200 with a bot-challenge page ({Bytes} bytes), not the product.",
+                url.Host,
+                html.Length);
 
             return null;
         }
@@ -308,6 +347,11 @@ public sealed class ProductScraper
         public bool IsComplete => title is not null && price is not null && currency is not null && imageUrl is not null;
 
         public bool Nothing => sources.Count == 0;
+
+        /// <summary>For the log line — which fields came back, not their values.</summary>
+        public IEnumerable<string> FieldNames() => sources.Keys.Select(field => field.ToString());
+
+        public IEnumerable<string> SourceNames() => readFrom;
 
         /// <summary>
         /// True when a strategy that reads published data contributed. If one did, a failure

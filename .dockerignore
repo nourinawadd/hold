@@ -1,0 +1,25 @@
+# Left over from the SQLite era, and kept as cheap insurance: hold.db is still on disk, and a
+# copy of it inside an image would be both stale and a leak of whatever was saved when it was
+# built.
+*.db
+*.db-shm
+*.db-wal
+
+bin/
+obj/
+
+# Tests are not published, and copying them only invalidates the build cache.
+tests/
+
+.git/
+.gitignore
+.vs/
+.vscode/
+.idea/
+
+Dockerfile
+compose.yaml
+render.yaml
+.dockerignore
+CLAUDE.md
+*.md

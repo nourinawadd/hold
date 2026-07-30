@@ -10,7 +10,27 @@
 </header>
 
 <main class="content">
-    @Body
+    @* Catches a component that threw, so one broken card cannot blank the whole page. The
+       #blazor-error-ui bar in app.css handles the different failure of a dropped circuit.
+
+       No red: a fault is not permission to buy something. *@
+    <ErrorBoundary @ref="boundary">
+        <ChildContent>
+            @Body
+        </ChildContent>
+
+        <ErrorContent>
+            <div class="broke">
+                <h1>That did not load</h1>
+
+                <p class="broke__line">
+                    Something on this page failed. Nothing you saved has been lost.
+                </p>
+
+                <button type="button" @onclick="Recover">Try again</button>
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
 </main>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -18,3 +38,13 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private ErrorBoundary? boundary;
+
+    // Without this the boundary stays latched and the message never goes away, even after
+    // navigating somewhere that works.
+    private void Recover() => boundary?.Recover();
+
+    protected override void OnParametersSet() => boundary?.Recover();
+}

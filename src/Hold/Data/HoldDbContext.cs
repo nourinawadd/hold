@@ -24,6 +24,7 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
         {
             list.Property(wishList => wishList.Name).HasMaxLength(100).IsRequired();
             list.Property(wishList => wishList.Description).HasMaxLength(500);
+            list.Property(wishList => wishList.BudgetAmount).HasPrecision(18, 2);
             list.Property(wishList => wishList.BudgetCurrency).HasMaxLength(3);
             list.Property(wishList => wishList.OwnerId).HasMaxLength(64).IsRequired();
 
@@ -44,9 +45,14 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
             item.Property(entity => entity.Currency).HasMaxLength(3).IsRequired();
             item.Property(entity => entity.Note).HasMaxLength(1000);
 
-            // Written as words rather than ordinals so the .db file reads plainly.
+            // Written as words rather than ordinals, so a row read straight from the database
+            // says Outerwear rather than 4.
             item.Property(entity => entity.Category).HasConversion<string>().HasMaxLength(20);
             item.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(20);
+
+            // Money is numeric(18,2), not the arbitrary precision Postgres would otherwise pick.
+            // Two decimal places is what shops quote and what the app displays.
+            item.Property(entity => entity.Price).HasPrecision(18, 2);
 
             // Ready is derived on read. Ignored explicitly rather than relying on EF's
             // treatment of get-only properties.
@@ -67,7 +73,11 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
             settings.Property(entity => entity.PreferredCurrency).HasMaxLength(3).HasDefaultValue("USD");
 
             // The single-row guarantee, enforced by the database rather than by the app.
-            settings.ToTable(table => table.HasCheckConstraint("CK_Settings_SingleRow", "Id = 1"));
+            // Id is quoted deliberately: Postgres folds an unquoted identifier to lower case,
+            // and EF creates the column as "Id", so a bare Id = 1 refers to a column that does
+            // not exist and the migration fails.
+            settings.ToTable(table =>
+                table.HasCheckConstraint("CK_Settings_SingleRow", "\"Id\" = 1"));
         });
     }
 }

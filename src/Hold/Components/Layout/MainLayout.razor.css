@@ -59,6 +59,22 @@
     padding: 3rem 2rem 5rem;
 }
 
+/* A component threw. Ink and mute, like every other thing that went wrong in this app. */
+
+.broke {
+    max-width: 34rem;
+    padding: 3rem 0;
+}
+
+.broke h1 {
+    margin-bottom: 1rem;
+}
+
+.broke__line {
+    margin-bottom: 2rem;
+    color: var(--mute);
+}
+
 @media (max-width: 640px) {
     .topbar {
         padding: 0 1.25rem;

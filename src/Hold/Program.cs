@@ -17,11 +17,17 @@ builder.Services.AddSingleton(TimeProvider.System);
 // A factory, not a scoped context: a Blazor Server circuit outlives a request by hours,
 // and a context living that long accumulates tracked entities and breaks when two
 // renders overlap. Services create a short-lived context per operation instead.
-// SQLite has no decimal type, so EF stores decimal as TEXT, where comparison and ordering
-// are lexicographic. That is accepted deliberately: money is always materialised and
-// aggregated in C#, never in SQL. See ListService.
 builder.Services.AddDbContextFactory<HoldDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Hold")));
+    options.UseNpgsql(
+        PostgresConnection.Resolve(builder.Configuration),
+        // A managed Postgres on a free tier sleeps when idle, so the first query after a quiet
+        // spell can lose the race to wake it. Retrying is only safe because nothing here opens
+        // an explicit transaction — EF's execution strategy refuses to manage one it did not
+        // start.
+        postgres => postgres.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null)));
 
 builder.Services.AddScoped<ListService>();
 builder.Services.AddScoped<ItemService>();
@@ -31,8 +37,10 @@ builder.Services.AddScoped<SettingsService>();
 // no key means Enabled is false, the parser is left out of the chain, and nothing is
 // billed. Set it in user secrets or the ANTHROPIC__APIKEY environment variable; never
 // commit it.
-builder.Services.AddSingleton<IProductExtractor>(_ =>
-    new ClaudeProductExtractor(builder.Configuration["Anthropic:ApiKey"]));
+builder.Services.AddSingleton<IProductExtractor>(services =>
+    new ClaudeProductExtractor(
+        builder.Configuration["Anthropic:ApiKey"],
+        services.GetRequiredService<ILogger<ClaudeProductExtractor>>()));
 
 // A typed client, never `new HttpClient()`: that leaks sockets and pins stale DNS.
 // Shops serve different markup to something that does not look like a browser, so the
@@ -53,30 +61,72 @@ builder.Services.AddHttpClient<ProductScraper>(client =>
 
 var app = builder.Build(); // builds the app (everythin before it is resgistered, and everything after it is executed after the app is built)
 
-// Development only. Production migrations are applied at deploy time (phase 8).
-if (app.Environment.IsDevelopment())
+// Migrations run in every environment, so an empty database becomes a working one with no
+// separate deploy step. The usual objection is several instances racing to migrate at once.
+// Postgres would happily let them try — unlike SQLite, it does not serialise writers for us —
+// so what rules it out here is the deployment: Render's free tier runs exactly one instance.
+// Scaling past one means moving this to a release command that runs before the app starts.
+await using (var scope = app.Services.CreateAsyncScope())
 {
-    await using var scope = app.Services.CreateAsyncScope();
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<HoldDbContext>>();
     await using var db = await factory.CreateDbContextAsync();
 
     await db.Database.MigrateAsync();
-    await DevDataSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<TimeProvider>());
+
+    // Seeding is Development-only. Production must never invent data.
+    if (app.Environment.IsDevelopment())
+    {
+        await DevDataSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<TimeProvider>());
+    }
 }
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    // this shows a generic error page instead of a stack trace. when in dev you want the stack trace
-    app.UseHsts(); // stops browser from connecting to this app over HTTP for 3o days
+    // A plain sentence, written inline rather than routed: an /Error page would be a route to
+    // keep in sync, and the previous handler pointed at one that never existed.
+    app.UseExceptionHandler(errors => errors.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "text/html; charset=utf-8";
+
+        await context.Response.WriteAsync(
+            """
+            <!doctype html><meta charset="utf-8"><title>Hold</title>
+            <body style="font-family:ui-monospace,monospace;background:#F2F0EA;color:#16161A;padding:3rem">
+              <p>Something went wrong on our side. Nothing you saved has been lost.</p>
+              <p><a href="/" style="color:#16161A">Back to your lists</a></p>
+            </body>
+            """);
+    }));
 }
 
-app.UseHttpsRedirection();
+// Both are hostile to a container that serves plain HTTP behind something else terminating
+// TLS: the redirect has nowhere to send anyone, and HSTS would tell the browser to force
+// HTTPS against an origin that has none. Only enabled when an HTTPS port really is configured.
+if (!string.IsNullOrEmpty(builder.Configuration["ASPNETCORE_HTTPS_PORTS"])
+    || !string.IsNullOrEmpty(builder.Configuration["HTTPS_PORTS"]))
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
+    app.UseHttpsRedirection();
+}
 
 
 app.UseAntiforgery(); // means every form must carry a secret token that only pages served by my app can contain
+
+// Opens the database rather than just answering. An app that is running but cannot reach its
+// database is not healthy, and with the database now a separate service across a network that
+// is the failure most worth catching.
+app.MapGet("/health", async (IDbContextFactory<HoldDbContext> factory) =>
+{
+    await using var db = await factory.CreateDbContextAsync();
+    await db.WishLists.CountAsync();
+
+    return Results.Text("ok");
+});
 
 app.MapStaticAssets(); // maps static assets so they can be served
 app.MapRazorComponents<App>()

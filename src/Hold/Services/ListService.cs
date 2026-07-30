@@ -27,7 +27,9 @@ public sealed record ListDetail(
 public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
 {
     // Mirrors the column limits in HoldDbContext.OnModelCreating, so an over-long value is
-    // refused with a sentence rather than truncated by SQLite.
+    // refused with a sentence the user can act on. Postgres would otherwise reject the insert
+    // outright — it does not truncate to fit the way SQLite did — and that surfaces as an
+    // exception rather than as validation.
     public const int NameMaxLength = 100;
     public const int DescriptionMaxLength = 500;
 
@@ -108,9 +110,10 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
-        // No OrderBy here: the SQLite provider refuses to translate DateTimeOffset in an
-        // ORDER BY clause at all, so date ordering happens in memory below — same rule as
-        // money, for a different reason.
+        // No OrderBy here. Postgres could do it — it orders timestamptz natively, unlike SQLite,
+        // which refused to translate DateTimeOffset at all — but the rows are fetched whole
+        // anyway to total them, so sorting below costs nothing and keeps one ordering rule in
+        // one place.
         var rows = await db.WishLists
             .AsNoTracking()
             .Where(list => list.OwnerId == WishList.DefaultOwnerId)
@@ -125,9 +128,9 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
             })
             .ToListAsync(cancellationToken);
 
-        // Money is TEXT as well, where "9.00" sorts after "100.00" and SUM() coerces to a
-        // float. The query above materialises first so all of the arithmetic below runs in
-        // memory, on decimal.
+        // Totals are computed here rather than by SQL because they are grouped by currency and
+        // never converted, which is a per-list shape rather than one aggregate. The query above
+        // materialises first so the arithmetic below runs on decimal.
         return rows
             .OrderByDescending(row => row.UpdatedAt)
             .Select(row => new ListSummary(
@@ -287,8 +290,9 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     }
 
     /// <summary>
-    /// Grouped in memory on purpose. Callers must have materialised their rows first —
-    /// decimal is TEXT in SQLite, so a SQL SUM would coerce money to a float.
+    /// Grouped in memory on purpose: totals are per currency and never converted, so this is a
+    /// handful of sums over rows the caller has already fetched rather than one aggregate worth
+    /// a round trip. Callers must have materialised their rows first.
     /// </summary>
     private static List<CurrencyTotal> Totals(IEnumerable<(decimal? Price, string Currency)> items) =>
         items

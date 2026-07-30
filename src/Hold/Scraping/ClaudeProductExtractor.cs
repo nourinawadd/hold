@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Anthropic;
 using Anthropic.Models.Messages;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Hold.Scraping;
 
@@ -52,11 +53,13 @@ public sealed class ClaudeProductExtractor : IProductExtractor
     private static readonly JsonSerializerOptions Lenient = new() { PropertyNameCaseInsensitive = true };
 
     private readonly AnthropicClient? client;
+    private readonly ILogger<ClaudeProductExtractor> log;
 
-    public ClaudeProductExtractor(string? apiKey)
+    public ClaudeProductExtractor(string? apiKey, ILogger<ClaudeProductExtractor>? logger = null)
     {
         // No key configured is a normal state, not an error. Hold works without this.
         client = string.IsNullOrWhiteSpace(apiKey) ? null : new AnthropicClient { ApiKey = apiKey };
+        log = logger ?? NullLogger<ClaudeProductExtractor>.Instance;
     }
 
     public bool Enabled => client is not null;
@@ -97,6 +100,11 @@ public sealed class ClaudeProductExtractor : IProductExtractor
         // refusal there is nothing in it.
         if (message.StopReason == "refusal")
         {
+            log.LogWarning(
+                "Claude declined to read {Host} ({Category}).",
+                url.Host,
+                message.StopDetails?.Category);
+
             return null;
         }
 
@@ -115,9 +123,13 @@ public sealed class ClaudeProductExtractor : IProductExtractor
         {
             return JsonSerializer.Deserialize<ProductDraft>(json, Lenient);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            // The schema makes this very unlikely, but a scrape must never throw.
+            // The schema makes this very unlikely, but a scrape must never throw — and a
+            // swallowed parse failure that leaves no trace is how a silent regression lives
+            // for months.
+            log.LogWarning(exception, "Could not read Claude's reply for {Host}.", url.Host);
+
             return null;
         }
     }
