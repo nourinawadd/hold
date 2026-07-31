@@ -1,6 +1,4 @@
-**[ HOLD ]**
-
-a wishlist that tracks how long you've wanted something.
+[<img src="assets/banner.png" alt="HOLD — a wishlist that tracks how long you've wanted something" width="700">](https://hold.nourin.me)
 
 save an item, set how long you'll wait. the app counts. when the wait is up, the item turns red and rises to the top. until then, it stays quiet.
 
