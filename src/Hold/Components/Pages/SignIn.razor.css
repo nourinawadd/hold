@@ -1,14 +1,7 @@
-/* Sign in. One heading, one line, one link — the same restraint as every other screen here.
-   No card, no illustration, and none of Google's own button styling, which brings rounded
-   corners and a shadow that nothing else in this app has. */
-
 .signin {
     max-width: 34rem;
     padding: 5rem 0;
 }
-
-/* The same mark as the topbar and the favicon. Bracketed here too — one of the two
-   unbracketed would read as a mistake rather than a variation. */
 
 .signin h1 {
     margin-bottom: 1rem;
@@ -29,8 +22,6 @@
     color: var(--mute);
 }
 
-/* Structural, so it reads as the one thing to do on this page. Ink on paper — red is
-   reserved for an elapsed wait and appears nowhere else. */
 .signin__go {
     display: inline-block;
     padding: 0.9rem 1.5rem;
@@ -47,6 +38,19 @@
     background: var(--paper);
     color: var(--ink);
     text-decoration: none;
+}
+
+.signin__demo {
+    display: block;
+    margin-top: 1.25rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+.signin__demo:hover {
+    color: var(--ink);
 }
 
 .signin__foot {

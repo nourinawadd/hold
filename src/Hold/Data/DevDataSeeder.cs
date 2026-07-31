@@ -2,12 +2,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hold.Data;
 
-/// <summary>
-/// Development-only seed data, applied at startup rather than through HasData. Seed rows
-/// anchored to the current time are non-deterministic, and EF compares them against the
-/// model on every build — via HasData they would make the migration regenerate endlessly.
-/// Computing the dates here keeps migrations stable and the data meaningful.
-/// </summary>
 public static class DevDataSeeder
 {
     public static async Task SeedAsync(
@@ -17,15 +11,16 @@ public static class DevDataSeeder
     {
         var pending = false;
 
-        // Seeded as unclaimed rather than against an invented account, so that signing in
-        // locally exercises the same adoption path production will take exactly once.
         if (!await db.Settings.AnyAsync(cancellationToken))
         {
             db.Settings.Add(new Settings { OwnerId = WishList.UnclaimedOwnerId });
             pending = true;
         }
 
-        if (!await db.WishLists.AnyAsync(cancellationToken))
+        var seeded = await db.WishLists
+            .AnyAsync(list => list.OwnerId != WishList.DemoOwnerId, cancellationToken);
+
+        if (!seeded)
         {
             db.WishLists.AddRange(BuildLists(timeProvider.GetUtcNow()));
             pending = true;
@@ -50,8 +45,6 @@ public static class DevDataSeeder
             UpdatedAt = now.AddHours(-6),
             Items =
             [
-                // Saved 40 days ago against a 30 day wait: already past its date, which is
-                // what phase 6 renders in --permission.
                 NewItem(
                     "https://shop.doen.com/products/sylvie-coat",
                     "Sylvie Coat",
@@ -68,7 +61,6 @@ public static class DevDataSeeder
                     Category.Shoes,
                     waitDays: 30,
                     savedAt: now.AddDays(-12)),
-                // Barely started — the other end of the range.
                 NewItem(
                     "https://mejuri.com/products/bold-hoops",
                     "Bold Hoops",
@@ -123,7 +115,6 @@ public static class DevDataSeeder
             ],
         };
 
-        // Deliberately empty: the Lists card renders five dashed slots for this one.
         yield return new WishList
         {
             OwnerId = WishList.UnclaimedOwnerId,

@@ -1,0 +1,144 @@
+.holder {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--ink);
+}
+
+.holder__mark {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    border: 0.5px solid var(--hairline);
+    background: var(--paper);
+}
+
+.holder__mark::before {
+    content: "[";
+    margin-right: 0.35rem;
+    color: var(--faint);
+}
+
+.holder__mark::after {
+    content: "]";
+    margin-left: 0.35rem;
+    color: var(--faint);
+}
+
+.holder__naming {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.holder__naming h1,
+.holder__naming .meta {
+    overflow-wrap: anywhere;
+}
+
+.figures {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    margin-top: 2.5rem;
+    background: var(--hairline);
+    border: 0.5px solid var(--hairline);
+}
+
+.figure {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1.5rem 1.25rem;
+    background: var(--paper);
+}
+
+.figure__value {
+    font-family: var(--data);
+    font-weight: 500;
+    font-size: 2rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.ledger {
+    margin: 2.5rem 0 0;
+}
+
+.ledger__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.9rem 0;
+    border-bottom: 0.5px solid var(--hairline);
+}
+
+.ledger__row dt {
+    flex: none;
+}
+
+.ledger__row dd {
+    margin: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.ready-note {
+    margin-top: 1.5rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+}
+
+.nothing {
+    margin-top: 2.5rem;
+    color: var(--mute);
+}
+
+@media (max-width: 640px) {
+    .figures {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .figure {
+        padding: 1.25rem 1rem;
+    }
+
+    .figure__value {
+        font-size: 1.75rem;
+    }
+
+    .holder {
+        gap: 1rem;
+    }
+
+    .holder__mark {
+        width: 3rem;
+        height: 3rem;
+        font-size: 1rem;
+    }
+
+    .ledger__row {
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .ledger__row dd {
+        text-align: left;
+    }
+}

@@ -3,8 +3,6 @@
 <header class="topbar">
     <a class="wordmark" href="">Hold</a>
 
-    @* Navigation and the account block are both hidden when signed out, so the sign-in page
-       and a shared link show the wordmark alone rather than links that lead to a redirect. *@
     <AuthorizeView>
         <Authorized>
             <nav class="topnav">
@@ -14,10 +12,11 @@
             </nav>
 
             <div class="account">
-                <span class="account__who">@Who(context)</span>
+                <a class="account__who" href="you">
+                    <span class="account__full">@Who(context)</span>
+                    <span class="account__short">@FirstName(context)</span>
+                </a>
 
-                @* A form post, not a button with an @onclick. Clearing the cookie means
-                   writing a response header, which an interactive circuit cannot do. *@
                 <form class="account__out" method="post" action="/account/logout">
                     <AntiforgeryToken />
                     <button type="submit" class="quiet">Sign out</button>
@@ -28,10 +27,7 @@
 </header>
 
 <main class="content">
-    @* Catches a component that threw, so one broken card cannot blank the whole page. The
-       #blazor-error-ui bar in app.css handles the different failure of a dropped circuit.
 
-       No red: a fault is not permission to buy something. *@
     <ErrorBoundary @ref="boundary">
         <ChildContent>
             @Body
@@ -60,15 +56,24 @@
 @code {
     private ErrorBoundary? boundary;
 
-    // Email rather than display name: with open signup two people can share a first name,
-    // and the address is the thing that says which account you are actually in.
-    private static string Who(AuthenticationState state) =>
-        state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-        ?? state.User.Identity?.Name
-        ?? "Signed in";
+    private static string Who(AuthenticationState state)
+    {
+        var name = state.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? state.User.Identity?.Name;
 
-    // Without this the boundary stays latched and the message never goes away, even after
-    // navigating somewhere that works.
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name.Trim();
+        }
+
+        var email = state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+        return string.IsNullOrWhiteSpace(email) ? "Signed in" : StatsService.LocalPart(email);
+    }
+
+    private static string FirstName(AuthenticationState state) =>
+        Who(state).Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "You";
+
     private void Recover() => boundary?.Recover();
 
     protected override void OnParametersSet() => boundary?.Recover();

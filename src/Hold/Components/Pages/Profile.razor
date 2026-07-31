@@ -1,0 +1,118 @@
+@page "/you"
+@inject StatsService StatsService
+@inject TimeProvider Time
+
+<PageTitle>You — Hold</PageTitle>
+
+@if (snapshot is null)
+{
+    <p class="meta">Loading</p>
+}
+else
+{
+    <div class="holder">
+        <span class="holder__mark">@snapshot.Holder.Initial</span>
+
+        <div class="holder__naming">
+            <h1>@snapshot.Holder.Name</h1>
+
+            @if (snapshot.Holder.Email is { } email)
+            {
+                <p class="meta">@email</p>
+            }
+
+            @if (snapshot.Holder.Since is { } since)
+            {
+                <p class="meta">@($"Holding since {since.ToLocalTime():d MMM yyyy}")</p>
+            }
+        </div>
+    </div>
+
+    @if (snapshot.Empty)
+    {
+        <p class="nothing">Save something and the count starts here.</p>
+    }
+    else
+    {
+        <div class="figures">
+            <div class="figure">
+                <span class="figure__value">@snapshot.ItemsHeld</span>
+                <span class="label">Items held</span>
+            </div>
+
+            <div class="figure">
+                <span class="figure__value">@snapshot.LetGo</span>
+                <span class="label">Let go</span>
+            </div>
+
+            <div class="figure">
+                <span class="figure__value">@snapshot.Bought</span>
+                <span class="label">Bought</span>
+            </div>
+
+            <div class="figure">
+                <span class="figure__value">@snapshot.Waiting</span>
+                <span class="label">Still waiting</span>
+            </div>
+        </div>
+
+        <dl class="ledger">
+            <div class="ledger__row">
+                <dt class="label">Not spent</dt>
+                <dd>@Money(snapshot.NotSpent)</dd>
+            </div>
+
+            <div class="ledger__row">
+                <dt class="label">Still on hold</dt>
+                <dd>@Money(snapshot.Committed)</dd>
+            </div>
+
+            <div class="ledger__row">
+                <dt class="label">Median wait before letting go</dt>
+                <dd>@Median()</dd>
+            </div>
+
+            <div class="ledger__row">
+                <dt class="label">Longest hold</dt>
+                <dd>@Longest()</dd>
+            </div>
+
+            <div class="ledger__row">
+                <dt class="label">Lists</dt>
+                <dd>@snapshot.Lists</dd>
+            </div>
+        </dl>
+
+        @if (snapshot.Ready > 0)
+        {
+            <p class="ready-note">@ReadyNote()</p>
+        }
+    }
+}
+
+@code {
+    private Snapshot? snapshot;
+
+    protected override async Task OnInitializedAsync() => snapshot = await StatsService.GetAsync();
+
+    private static string Money(IReadOnlyList<CurrencyTotal> totals) =>
+        totals.Count == 0 ? "—" : string.Join(" · ", totals.Select(total => total.Display()));
+
+    private string Median() =>
+        snapshot!.MedianDaysBeforeLettingGo is { } days ? $"{days} days" : "—";
+
+    private string Longest()
+    {
+        if (snapshot!.LongestHold is not { } item)
+        {
+            return "—";
+        }
+
+        return $"{item.Title} · {item.DaysWaited(Time.GetUtcNow())} days";
+    }
+
+    private string ReadyNote() =>
+        snapshot!.Ready == 1
+            ? "One item has finished its wait."
+            : $"{snapshot.Ready} items have finished their wait.";
+}
