@@ -6,15 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Hold.Scraping;
 
-/// <summary>
-/// Runs the strategy chain and merges what comes back. Never throws for a page it could not
-/// read: the add flow must always fall through to manual entry, so every failure returns a
-/// sentence instead.
-/// </summary>
 public sealed class ProductScraper
 {
-    // The fall-through line from the spec. Every refusal ends the same way, because the
-    // user's next move is the same in every case.
     private const string FallThrough = "Fill in what you know — the link is saved.";
 
     private readonly HttpClient http;
@@ -22,11 +15,6 @@ public sealed class ProductScraper
     private readonly PageRecovery recovery;
     private readonly IProductParser[] parsers;
 
-    /// <summary>
-    /// <paramref name="extractor"/> is optional: without one the chain skips the model and
-    /// runs on structured data and the URL alone. <paramref name="logger"/> is optional so a
-    /// test can construct a scraper with nothing but an HttpClient.
-    /// </summary>
     public ProductScraper(
         HttpClient http,
         IProductExtractor? extractor = null,
@@ -38,9 +26,6 @@ public sealed class ProductScraper
 
         extractor ??= NoExtractor.Instance;
 
-        // Ordered by how much each answer can be trusted: structured data, then prose,
-        // then the link itself. Every one below Shopify needs a page except the last,
-        // which is why the last is the one that survives a shop that blocks readers.
         List<IProductParser> chain =
         [
             new ShopifyParser(),
@@ -80,14 +65,10 @@ public sealed class ProductScraper
         string? failure = null;
         var archived = false;
 
-        // Declared out here so it outlives the fetch block: the parser loop below reads it,
-        // and a document disposed at the end of an inner scope is an empty document.
         IDocument? document = null;
 
         try
         {
-            // 1 — Shopify, which answers in about 8KB where the rendered page costs a
-            // megabyte. Worth trying before anything is downloaded.
             if (ShopifyParser.Matches(url))
             {
                 progress?.Report(new ScrapeStep("Shopify storefront detected"));
@@ -104,8 +85,6 @@ public sealed class ProductScraper
                 }
                 catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
                 {
-                    // A dead host here must not end the attempt. Every later rung, including
-                    // the one that reads the link itself, still deserves its turn.
                     failure = exception is HttpRequestException http
                         ? Explain(http.StatusCode)
                         : $"The shop took too long to answer. {FallThrough}";
@@ -117,11 +96,6 @@ public sealed class ProductScraper
                 }
             }
 
-            // In practice this always runs after Shopify: the .js payload carries no
-            // currency field, and guessing one would break the rule that a price is stored
-            // in whatever currency the shop quoted. The page is worth the bytes for that
-            // alone. The check stays because a strategy that does fill every field should
-            // not trigger a download.
             if (!merged.IsComplete)
             {
                 string? html = null;
@@ -132,8 +106,6 @@ public sealed class ProductScraper
                 }
                 catch (HttpRequestException exception)
                 {
-                    // Remembered, not thrown: a refusal here is the reason to start the
-                    // recovery ladder, not the end of the attempt.
                     failure = Explain(exception.StatusCode);
 
                     log.LogWarning(
@@ -142,8 +114,6 @@ public sealed class ProductScraper
                         exception.StatusCode);
                 }
 
-                // Ladder, in order of how much the answer can be trusted. Each rung only
-                // runs because the one above it produced nothing.
                 if (html is null)
                 {
                     var recovered = await recovery.TryVariantsAsync(url, progress, cancellationToken)
@@ -153,14 +123,11 @@ public sealed class ProductScraper
                     {
                         progress?.Report(new ScrapeStep($"Recovered from {recovered.Via}"));
 
-                        // A fallback that worked is normal operation, not a problem.
                         log.LogInformation(
                             "Recovered {Host} from {Via}.", url.Host, recovered.Via);
 
                         html = recovered.Html;
 
-                        // An archived price is a price from some other month. Money is the
-                        // one field that must never come from a copy.
                         archived = recovered.Via.Contains("archived", StringComparison.Ordinal);
                         failure = null;
                     }
@@ -179,8 +146,6 @@ public sealed class ProductScraper
                 }
             }
 
-            // Every remaining strategy, including the ones that need no page at all. The
-            // URL parser runs even when nothing was fetched — that is the whole point of it.
             foreach (var parser in parsers.Skip(1))
             {
                 if (merged.IsComplete)
@@ -211,7 +176,6 @@ public sealed class ProductScraper
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // HttpClient reports its own timeout as a cancellation.
             failure = $"The shop took too long to answer. {FallThrough}";
 
             log.LogWarning("{Host} did not answer within the timeout.", url.Host);
@@ -221,8 +185,6 @@ public sealed class ProductScraper
             document?.Dispose();
         }
 
-        // What the user ends up with, in one line. The whole ladder is reconstructable from
-        // this plus the entries above.
         log.LogInformation(
             "Read {Host}: {Fields} from {Sources}.{Outcome}",
             url.Host,
@@ -230,25 +192,17 @@ public sealed class ProductScraper
             merged.Nothing ? "no source" : string.Join("+", merged.SourceNames()),
             failure is null ? string.Empty : $" Fell through: {failure}");
 
-        // A failure only refuses when it left us with nothing. Margaux answers the .js
-        // endpoint and then 404s the page it came from; throwing away a good Shopify read
-        // because the follow-up request failed would be losing what we already have.
         if (merged.Nothing)
         {
             return Refused(normalised, failure ?? $"This shop hides its details from readers. {FallThrough}");
         }
 
-        // Partial, not refused: the shop blocked us but the link still named the product.
-        // The sentence stays so the user knows why the fields are thin and unverified —
-        // this is the spec's fourth state, reached with the form already part-filled. It is
-        // dropped when a strong source answered, because then nothing needs excusing.
         return merged.ToOutcome(url) with
         {
             Message = merged.HasStrongSource ? null : failure,
         };
     }
 
-    /// <summary>Returns null for a page that answered but is not readable markup.</summary>
     private async Task<string?> FetchAsync(
         Uri url,
         IProgress<ScrapeStep>? progress,
@@ -271,15 +225,10 @@ public sealed class ProductScraper
 
         var html = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        // A bot-manager interstitial answers 200 with a page of challenge script. Reporting
-        // that as the page retrieved would be a false account of what happened, and parsing
-        // it wastes the rest of the ladder.
         if (PageRecovery.IsChallenge(html))
         {
             progress?.Report(new ScrapeStep("Shop answered with a checkpoint, not the page", clock.Elapsed));
 
-            // A 200 that is not the page. Worth a warning precisely because the status code
-            // says everything is fine.
             log.LogWarning(
                 "{Host} answered 200 with a bot-challenge page ({Bytes} bytes), not the product.",
                 url.Host,
@@ -293,14 +242,11 @@ public sealed class ProductScraper
         return html;
     }
 
-    /// <summary>Names the step so the reading state stays a true account of what ran.</summary>
     private static void Announce(IProductParser parser, IProgress<ScrapeStep>? progress)
     {
         var step = parser switch
         {
             JsonLdParser => "Reading price",
-            // Named outright: the user should know when a model is reading the page rather
-            // than a parser, because those values are guesses.
             LlmParser => "No structured data — asking Claude",
             UrlSlugParser => "Reading the link itself",
             _ => null,
@@ -329,10 +275,6 @@ public sealed class ProductScraper
             new Dictionary<ProductField, string>(),
             message);
 
-    /// <summary>
-    /// Field by field, first non-null wins — so Shopify's price survives even when a later
-    /// strategy also has one, and og:title fills a gap Shopify left.
-    /// </summary>
     private sealed class Merge(string url)
     {
         private readonly Dictionary<ProductField, string> sources = [];
@@ -348,17 +290,10 @@ public sealed class ProductScraper
 
         public bool Nothing => sources.Count == 0;
 
-        /// <summary>For the log line — which fields came back, not their values.</summary>
         public IEnumerable<string> FieldNames() => sources.Keys.Select(field => field.ToString());
 
         public IEnumerable<string> SourceNames() => readFrom;
 
-        /// <summary>
-        /// True when a strategy that reads published data contributed. If one did, a failure
-        /// further down the ladder is noise — Margaux answers its .js endpoint and then 404s
-        /// the page, and telling the user "that page is not there any more" over a correct
-        /// product would be alarming and wrong.
-        /// </summary>
         public bool HasStrongSource =>
             readFrom.Any(name => name is ScrapeOutcome.ShopifyName or ScrapeOutcome.JsonLdName);
 
@@ -386,7 +321,6 @@ public sealed class ProductScraper
 
         public ScrapeOutcome ToOutcome(Uri pageUrl)
         {
-            // Relative image URLs are resolved centrally, so no parser has to think about it.
             if (imageUrl is not null && Uri.TryCreate(pageUrl, imageUrl, out var absolute))
             {
                 imageUrl = absolute.ToString();

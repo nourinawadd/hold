@@ -17,7 +17,6 @@
     max-width: 26rem;
 }
 
-/* The browser's own clear affordance duplicates the button beside it. */
 .search__row input::-webkit-search-cancel-button {
     display: none;
 }

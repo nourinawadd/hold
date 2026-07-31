@@ -1,7 +1,5 @@
 namespace Hold.Data;
 
-// One category per item. Not a many-to-many, not free-text tags.
-// Stored as its name, so renaming a member orphans existing rows.
 public enum Category
 {
     Tops,
@@ -14,5 +12,6 @@ public enum Category
     Beauty,
     Home,
     Tech,
+    Projects,
     Other,
 }

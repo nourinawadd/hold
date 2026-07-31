@@ -8,7 +8,6 @@
 
 @if (summaries.Count == 0 && mode is Mode.None)
 {
-    @* The heading is an instruction, never "Nothing here yet". *@
     <div class="empty">
         <h1>Start a list</h1>
 
@@ -41,8 +40,6 @@ else
 
     @if (mode is not Mode.None)
     {
-        @* Keyed on what it was opened for: the form seeds its fields once, so switching
-           between create and rename must hand it a fresh instance. *@
         <ListForm @key="(mode, editId, prefillName)"
                   SubmitLabel="@(mode is Mode.Create ? "Create" : "Save")"
                   InitialName="@prefillName"
@@ -54,7 +51,6 @@ else
                   OnCancel="Close" />
     }
 
-    // Read once per render so every card agrees on what "6 hours ago" means.
     var now = Time.GetUtcNow();
 
     <div class="list-grid">
@@ -86,7 +82,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // The currency a bare budget amount is assumed to be in.
         preferredCurrency = (await SettingsService.GetAsync()).PreferredCurrency;
 
         await Reload();
@@ -101,18 +96,15 @@ else
         prefillBudgetAmount = null;
         prefillBudgetCurrency = preferredCurrency;
 
-        // A blank form offers the four names; one opened from a suggestion already has one.
         showSuggestions = withName is null;
     }
 
     private async Task StartRename(int id)
     {
-        // The card carries neither description nor budget, so they are fetched for the prefill.
         var detail = await ListService.GetDetailAsync(id);
 
         if (detail is null)
         {
-            // Deleted in another tab. Refresh rather than open a form over nothing.
             await Reload();
             return;
         }
@@ -147,7 +139,6 @@ else
     {
         await ListService.DeleteAsync(id);
 
-        // If the open form was editing the list that just went, close it.
         if (mode is Mode.Rename && editId == id)
         {
             Close();
@@ -156,6 +147,5 @@ else
         await Reload();
     }
 
-    // Re-queried after every mutation so counts, totals, and order stay truthful.
     private async Task Reload() => summaries = await ListService.GetSummariesAsync();
 }

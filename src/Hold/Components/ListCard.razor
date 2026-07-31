@@ -1,12 +1,5 @@
-@* One list in the grid. Owns its delete confirmation; the parent owns the data. *@
-
 <article class="list-card">
-    @* Buttons must not sit inside this anchor — nesting them is invalid HTML and breaks
-       keyboard activation. The actions live as siblings below. *@
     <a class="list-card__open" href="/lists/@List.Id">
-        @* Images first, then a plain block for each remaining item, then dashed outlines for
-           the empty slots. Filling from the left means a list whose only pictured items were
-           saved last still leads with them. *@
         <div class="thumbs">
             @for (var slot = 0; slot < ListService.ThumbnailSlots; slot++)
             {
@@ -34,8 +27,6 @@
                 <p class="meta">@List.ItemCount products · @Ago(List.UpdatedAt)</p>
             </div>
 
-            @* One line per currency. Amounts are never combined across currencies, and
-               stacking them keeps a two-currency list from squeezing the name beside it. *@
             <div class="list-card__totals">
                 @if (List.Totals.Count == 0)
                 {
@@ -45,20 +36,14 @@
                 {
                     @foreach (var total in List.Totals)
                     {
-                        <span class="meta">@($"{total.Amount:N2} {total.Currency}")</span>
+                        <span class="meta">@total.Display()</span>
                     }
                 }
             </div>
         </div>
     </a>
 
-    @* No actions unless the parent wired them. On the all-items view these cards are
-       navigation, and a Delete that silently did nothing would be worse than no Delete. *@
-    @if (!Editable)
-    {
-        // Nothing — the card is a link and only a link.
-    }
-    else if (confirming)
+    @if (Editable && confirming)
     {
         <div class="list-card__confirm">
             <p class="confirm-question">@Question()</p>
@@ -69,7 +54,7 @@
             </div>
         </div>
     }
-    else
+    else if (Editable)
     {
         <div class="list-card__actions">
             <button type="button" class="quiet" @onclick="() => OnRename.InvokeAsync(List.Id)">Rename</button>
@@ -82,18 +67,9 @@
     [Parameter, EditorRequired]
     public ListSummary List { get; set; } = null!;
 
-    /// <summary>
-    /// Passed down rather than read from an injected TimeProvider, so every card in a
-    /// render agrees on what "6 hours ago" means.
-    /// </summary>
     [Parameter, EditorRequired]
     public DateTimeOffset Now { get; set; }
 
-    /// <summary>
-    /// How wide a thumbnail to ask the shop's CDN for. A parameter rather than a constant
-    /// because the same card is drawn at two sizes: full width on Lists, and in a narrow grid
-    /// on All items, which would be downloading pictures four times larger than it draws.
-    /// </summary>
     [Parameter]
     public int ImageWidth { get; set; } = ProductImage.ThumbnailWidth;
 
@@ -107,10 +83,6 @@
     private bool pendingFocus;
     private ElementReference confirmButton;
 
-    /// <summary>
-    /// True only when the parent actually handles the actions. HasDelegate is the honest
-    /// test — an unwired EventCallback silently swallows the click.
-    /// </summary>
     private bool Editable => OnRename.HasDelegate || OnDelete.HasDelegate;
 
     private void Ask()
@@ -128,14 +100,10 @@
             return;
         }
 
-        // Cleared before awaiting: FocusAsync triggers another render, and leaving the flag
-        // set would fight the user for the caret on every one of them.
         pendingFocus = false;
         await confirmButton.FocusAsync();
     }
 
-    // Naming what goes with the list is the whole point of the confirmation — deleting a
-    // list cascades to its items.
     private string Question() => List.ItemCount switch
     {
         0 => $"Delete {List.Name}?",
@@ -153,7 +121,6 @@
             { TotalHours: < 1 } => $"{(int)elapsed.TotalMinutes} minutes ago",
             { TotalHours: < 24 } => $"{(int)elapsed.TotalHours} hours ago",
             { TotalDays: < 30 } => $"{(int)elapsed.TotalDays} days ago",
-            // Stored as UTC, so format in local time or the date slips near midnight.
             _ => when.ToLocalTime().ToString("d MMM yyyy"),
         };
     }

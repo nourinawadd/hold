@@ -1,26 +1,22 @@
-@* The budget, and how much of it is spoken for.
-
-   It counts only items quoted in the budget's own currency — amounts are never converted, so
-   a total in another currency is named beneath rather than folded in or quietly dropped.
-
-   Over budget is bold ink and a hatched fill. Never red: red means an item is ready. *@
-
 @if (Amount is { } budget && Currency is { } currency)
 {
     <div class="budget @(Over ? "budget--over" : null)">
         <div class="budget__head">
             <span class="label">@(Over ? "Over budget" : "Budget")</span>
-            <span class="budget__figures">@($"{Spent(currency):N2} of {budget:N2} {currency}")</span>
+            <span class="budget__figures">@($"{(Estimated(currency) ? "≈ " : string.Empty)}{Spent(currency):N2} of {budget:N2} {currency}")</span>
         </div>
 
         <div class="budget__track">
             <div class="budget__fill" style="width: @Filled(budget, currency)%"></div>
         </div>
 
+        @if (Estimates(currency) > 0)
+        {
+            <p class="budget__aside">@Guessed(currency)</p>
+        }
+
         @if (Elsewhere(currency) is { Count: > 0 } others)
         {
-            @* Named, not converted. The user can see it exists without the app pretending
-               to know an exchange rate. *@
             <p class="budget__aside">
                 @($"Also holding {string.Join(" and ", others.Select(total => $"{total.Amount:N2} {total.Currency}"))}, not counted against this budget.")
             </p>
@@ -40,19 +36,25 @@
 
     private bool Over => Amount is { } budget && Currency is { } currency && Spent(currency) > budget;
 
-    /// <summary>Only the matching currency. This is the whole point of the component.</summary>
     private decimal Spent(string currency) =>
         Totals.Where(total => total.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase))
             .Sum(total => total.Amount);
+
+    private int Estimates(string currency) =>
+        Totals.Where(total => total.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase))
+            .Sum(total => total.EstimateCount);
+
+    private bool Estimated(string currency) => Estimates(currency) > 0;
+
+    private string Guessed(string currency) =>
+        Estimates(currency) == 1
+            ? "Includes one estimated price."
+            : $"Includes {Estimates(currency)} estimated prices.";
 
     private IReadOnlyList<CurrencyTotal> Elsewhere(string currency) =>
         Totals.Where(total => !total.Currency.Equals(currency, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-    /// <summary>
-    /// Capped at full — past the budget the bar cannot say more, and the hatching plus the
-    /// figures carry how far over.
-    /// </summary>
     private int Filled(decimal budget, string currency) =>
         budget <= 0 ? 100 : (int)Math.Clamp(Spent(currency) / budget * 100m, 0m, 100m);
 }

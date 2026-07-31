@@ -38,13 +38,6 @@ namespace Hold.Data.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            // Not scaffolded, and the reason EF warned about data loss. The new column would
-            // otherwise leave the existing row owned by the empty string, where the adoption in
-            // GoogleSignIn — which looks for "me" — would never find it, and the wait and
-            // currency chosen before accounts existed would be silently abandoned.
-            //
-            // Safe as a blanket UPDATE because the CK_Settings_SingleRow constraint dropped
-            // just above guaranteed there was never more than one row to begin with.
             migrationBuilder.Sql($"""UPDATE "Settings" SET "OwnerId" = '{WishList.UnclaimedOwnerId}';""");
 
             migrationBuilder.AddPrimaryKey(
@@ -110,11 +103,6 @@ namespace Hold.Data.Migrations
                 nullable: false,
                 defaultValue: 0);
 
-            // Also not scaffolded. Going back means going back to one row keyed to 1, and the
-            // check constraint at the end of this method would reject the 0 the column default
-            // leaves behind. Rows beyond the first cannot be kept — the old schema had no way
-            // to represent more than one, and OwnerId no longer exists to choose between them,
-            // so the surviving row is picked by physical position.
             migrationBuilder.Sql("""
                 DELETE FROM "Settings" WHERE ctid NOT IN (SELECT MIN(ctid) FROM "Settings");
                 UPDATE "Settings" SET "Id" = 1;

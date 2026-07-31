@@ -1,18 +1,10 @@
-# Left over from the SQLite era, and kept as cheap insurance: hold.db is still on disk, and a
-# copy of it inside an image would be both stale and a leak of whatever was saved when it was
-# built.
 *.db
 *.db-shm
 *.db-wal
 
-# The ** matters. A bare `bin/` matches only the context root, so src/Hold/obj still came in —
-# and obj/project.assets.json holds absolute Windows paths to the host's NuGet cache. Copied
-# into a Linux image and reused by `publish --no-restore`, it fails inside ResolvePackageAssets
-# with a stack trace that says nothing about the actual cause.
 **/bin/
 **/obj/
 
-# Tests are not published, and copying them only invalidates the build cache.
 tests/
 
 .git/
@@ -25,5 +17,4 @@ Dockerfile
 compose.yaml
 render.yaml
 .dockerignore
-CLAUDE.md
 *.md

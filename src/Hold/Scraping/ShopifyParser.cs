@@ -3,19 +3,12 @@ using System.Text.Json;
 
 namespace Hold.Scraping;
 
-/// <summary>
-/// Shopify exposes a clean JSON version of any product at the same path with ".js"
-/// appended. It covers a large share of independent fashion labels, costs about 8KB
-/// against a megabyte of rendered page, and never lies about which variant you are looking
-/// at — which is why it runs first.
-/// </summary>
 public sealed class ShopifyParser : IProductParser
 {
     public string Name => ScrapeOutcome.ShopifyName;
 
     public bool StrongSource => true;
 
-    /// <summary>True for /products/{handle}, which is the only shape worth trying.</summary>
     public static bool Matches(Uri url)
     {
         var segments = url.AbsolutePath.Trim('/').Split('/');
@@ -44,8 +37,6 @@ public sealed class ShopifyParser : IProductParser
             return null;
         }
 
-        // A storefront that does not know this route often answers 200 with the HTML page.
-        // Anything that is not JSON is not ours.
         var mediaType = response.Content.Headers.ContentType?.MediaType;
 
         if (mediaType is not (MediaTypeNames.Application.Json or "text/javascript" or "application/javascript"))
@@ -86,13 +77,10 @@ public sealed class ShopifyParser : IProductParser
             vendor,
             Image(root),
             Price(root),
-            // The .js payload has no currency field; the shop's own currency is assumed and
-            // corrected by whatever the later strategies find.
             null,
             [Name]);
     }
 
-    /// <summary>Shopify quotes money in <em>cents</em>. 6800 is sixty-eight dollars.</summary>
     private static decimal? Price(JsonElement root)
     {
         if (!root.TryGetProperty("price", out var price))
@@ -129,7 +117,6 @@ public sealed class ShopifyParser : IProductParser
         return null;
     }
 
-    // Shopify returns protocol-relative URLs like //cdn.shopify.com/...
     private static string Absolute(string url) =>
         url.StartsWith("//", StringComparison.Ordinal) ? $"https:{url}" : url;
 

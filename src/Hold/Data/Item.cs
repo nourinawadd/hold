@@ -8,7 +8,7 @@ public class Item
 
     public WishList WishList { get; set; } = null!;
 
-    public required string Url { get; set; }
+    public string? Url { get; set; }
 
     public required string Title { get; set; }
 
@@ -16,11 +16,13 @@ public class Item
 
     public string? ImageUrl { get; set; }
 
-    /// <summary>
-    /// Stored in whatever currency the shop quoted, never converted.
-    /// Null when the scraper could not recover a price.
-    /// </summary>
     public decimal? Price { get; set; }
+
+    public bool PriceIsEstimate { get; set; }
+
+    public decimal? LatestPrice { get; set; }
+
+    public DateTimeOffset? LatestPriceAt { get; set; }
 
     public required string Currency { get; set; }
 
@@ -35,9 +37,6 @@ public class Item
     public DateTimeOffset? ClosedAt { get; set; }
 
     public string? Note { get; set; }
-
-    // Ready is computed, never stored. No background job flips a flag, so there are no
-    // stale rows. Callers pass `now` in from an injected TimeProvider so this is testable.
 
     public DateTimeOffset ReadyAt => SavedAt.AddDays(WaitDays);
 

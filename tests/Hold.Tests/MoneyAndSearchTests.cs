@@ -14,12 +14,10 @@ public class BudgetValidationTests
 
     [Fact]
     public void ANegativeBudgetIsRefused() =>
-        // A negative budget is not a constraint.
         Assert.NotNull(ListService.DescribeProblem(Draft(-1m, "USD")));
 
     [Fact]
     public void ZeroIsAllowed() =>
-        // "Spend nothing" is a real intention, and the bar shows it as immediately over.
         Assert.Null(ListService.DescribeProblem(Draft(0m, "USD")));
 
     [Theory]
@@ -41,7 +39,6 @@ public class BudgetValidationTests
     [Fact]
     public void ACurrencyWithNoAmountIsCleared()
     {
-        // A currency governs nothing on its own.
         var (amount, currency) = ListService.SettleBudget(null, "USD", "USD");
 
         Assert.Null(amount);
@@ -69,8 +66,6 @@ public class ItemSearchTests
         WaitDays = 30,
         SavedAt = DateTimeOffset.UnixEpoch,
         Status = ItemStatus.Waiting,
-        // Any owner will do — Matches only ever reads the name. The property is required
-        // so that a list cannot reach the database without one, not because this test cares.
         WishList = listName is null ? null! : new WishList { Name = listName, OwnerId = "test" },
     };
 
@@ -84,14 +79,11 @@ public class ItemSearchTests
 
     [Fact]
     public void MatchesOnTheListName() =>
-        // The third field CLAUDE.md:202 names.
         Assert.True(ItemService.Matches(Item("Scarf", listName: "Gifts"), "gifts"));
 
     [Fact]
     public void IgnoresAccents()
     {
-        // Half the seeded brands are accented. An ordinal comparison would miss this, and
-        // nobody types the circumflex.
         Assert.True(ItemService.Matches(Item("Coat", brand: "Dôen"), "doen"));
         Assert.True(ItemService.Matches(Item("Coat", brand: "Doen"), "dôen"));
     }
@@ -117,14 +109,9 @@ public class ItemSearchTests
 
     [Fact]
     public void SurvivesAnItemWithNoBrandOrList() =>
-        // Brand is nullable and WishList is not loaded on every path.
         Assert.False(ItemService.Matches(Item("Coat"), "margaux"));
 }
 
-/// <summary>
-/// The bar's arithmetic, which is the part that must never be wrong: it decides whether the
-/// user believes they have room to spend.
-/// </summary>
 public class BudgetBarMathTests
 {
     private static decimal Spent(string currency, params CurrencyTotal[] totals) =>
@@ -134,8 +121,6 @@ public class BudgetBarMathTests
     [Fact]
     public void CountsOnlyTheBudgetsOwnCurrency()
     {
-        // Wishlist really does hold both. Folding the EGP in would require a rate the app
-        // deliberately does not have.
         var totals = new[] { new CurrencyTotal("USD", 1272m), new CurrencyTotal("EGP", 2590m) };
 
         Assert.Equal(1272m, Spent("USD", totals));
@@ -151,7 +136,6 @@ public class BudgetBarMathTests
         const decimal budget = 1500m;
         var spent = Spent("USD", new CurrencyTotal("USD", 1500m));
 
-        // The boundary: spending your whole budget is not overspending it.
         Assert.False(spent > budget);
     }
 
@@ -169,7 +153,6 @@ public class BudgetBarMathTests
     {
         var totals = new[] { new CurrencyTotal("USD", 10.10m), new CurrencyTotal("USD", 20.20m) };
 
-        // decimal, never double — 10.10 + 20.20 is 30.30 and not 30.299999999999997.
         Assert.Equal(30.30m, Spent("USD", totals));
     }
 }

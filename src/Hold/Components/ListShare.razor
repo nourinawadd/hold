@@ -1,5 +1,3 @@
-@* Sharing controls for one list. Owns its own token state; the parent owns the list. *@
-
 @inject ListService ListService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -15,8 +13,6 @@
     }
     else
     {
-        @* Readonly rather than disabled: a disabled input cannot be selected, and selecting
-           the text by hand is the fallback whenever the clipboard is refused. *@
         <input class="share__url" type="text" readonly value="@Url()" @onfocus="SelectAll" @ref="field" />
 
         <div class="share__actions">
@@ -75,11 +71,6 @@
         }
     }
 
-    /// <summary>
-    /// The clipboard API refuses outside a secure context and can be denied by the browser,
-    /// and neither is worth an error state — the URL is on screen and selectable either way,
-    /// so a refusal just leaves the button saying Copy.
-    /// </summary>
     private async Task Copy()
     {
         try

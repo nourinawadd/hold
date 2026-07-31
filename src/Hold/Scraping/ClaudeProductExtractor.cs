@@ -5,15 +5,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Hold.Scraping;
 
-/// <summary>
-/// Reads a page's visible text with Claude when the four structured parsers came up empty.
-///
-/// <para>
-/// This helps exactly one case: the page was fetched but publishes no structured data. It
-/// cannot help when a shop answers 403 — there is no text to read. That path still falls
-/// through to manual entry.
-/// </para>
-/// </summary>
 public sealed class ClaudeProductExtractor : IProductExtractor
 {
     private const string Model = "claude-opus-5";
@@ -34,8 +25,6 @@ public sealed class ClaudeProductExtractor : IProductExtractor
         page makes it unambiguous, otherwise null.
         """;
 
-    /// <summary>All four fields are required so the model must state a null rather than
-    /// quietly omitting a key it was unsure about.</summary>
     private static readonly Dictionary<string, JsonElement> Schema = new()
     {
         ["type"] = JsonSerializer.SerializeToElement("object"),
@@ -57,7 +46,6 @@ public sealed class ClaudeProductExtractor : IProductExtractor
 
     public ClaudeProductExtractor(string? apiKey, ILogger<ClaudeProductExtractor>? logger = null)
     {
-        // No key configured is a normal state, not an error. Hold works without this.
         client = string.IsNullOrWhiteSpace(apiKey) ? null : new AnthropicClient { ApiKey = apiKey };
         log = logger ?? NullLogger<ClaudeProductExtractor>.Instance;
     }
@@ -81,8 +69,6 @@ public sealed class ClaudeProductExtractor : IProductExtractor
             System = Instructions,
             OutputConfig = new OutputConfig
             {
-                // Extraction from text in front of it — this is not a reasoning-heavy task,
-                // and low effort keeps the per-scrape cost down.
                 Effort = Effort.Low,
                 Format = new JsonOutputFormat { Schema = Schema },
             },
@@ -96,8 +82,6 @@ public sealed class ClaudeProductExtractor : IProductExtractor
             ],
         });
 
-        // Safety classifiers can decline a request. Check before reading content — on a
-        // refusal there is nothing in it.
         if (message.StopReason == "refusal")
         {
             log.LogWarning(
@@ -125,9 +109,6 @@ public sealed class ClaudeProductExtractor : IProductExtractor
         }
         catch (JsonException exception)
         {
-            // The schema makes this very unlikely, but a scrape must never throw — and a
-            // swallowed parse failure that leaves no trace is how a silent regression lives
-            // for months.
             log.LogWarning(exception, "Could not read Claude's reply for {Host}.", url.Host);
 
             return null;

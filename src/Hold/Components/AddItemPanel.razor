@@ -1,12 +1,7 @@
-@* States 3 and 4 of the add flow — found, and refused or partial. Identical layout,
-   identical button, identical weight. Only the header, the message, and the prefill
-   differ, because a page that hid its details is not a failure the user caused. *@
 @inject SettingsService SettingsService
 @inject TimeProvider Time
 
 <div class="add-panel">
-    @* Provenance. Naming the source is what prompts the user to check a scraped price,
-       which lies about sales, variants, and currency. *@
     <p class="panel-head">@Header</p>
 
     @if (Message is not null)
@@ -29,8 +24,8 @@
 
             <div class="fields">
                 <div class="field field--wide">
-                    <label class="label" for="item-url">Product link</label>
-                    <input id="item-url" @ref="firstInput" @bind="url" @bind:event="oninput" autocomplete="off" />
+                    <label class="label" for="item-url">Product link (optional)</label>
+                    <input id="item-url" @ref="firstInput" @bind="Url" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field field--wide">
@@ -54,15 +49,13 @@
                 </div>
 
                 <div class="field">
-                    <label class="label" for="item-price">Price</label>
+                    <label class="label" for="item-price">@(priceIsEstimate ? "Estimated price" : "Price")</label>
                     <input id="item-price" class="@Faint(ProductField.Price)" type="number" step="0.01" min="0"
                            @bind="Price" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field">
                     <label class="label" for="item-currency">Currency</label>
-                    @* A scraped code outside the four is kept as an option by Currencies.Including,
-                       so opening this panel cannot silently rewrite what the shop quoted. *@
                     <CurrencySelect Id="item-currency" Class="@Faint(ProductField.Currency)"
                                     Value="Currency" ValueChanged="c => Currency = c" />
                 </div>
@@ -73,14 +66,19 @@
                 </div>
 
                 <div class="field field--wide">
+                    <label class="estimate" for="item-estimate">
+                        <input id="item-estimate" type="checkbox" @bind="PriceIsEstimate" />
+                        <span>This price is my estimate</span>
+                    </label>
+                </div>
+
+                <div class="field field--wide">
                     <label class="label" for="item-note">Note</label>
                     <input id="item-note" @bind="note" @bind:event="oninput" autocomplete="off" />
                 </div>
             </div>
         </div>
 
-        @* The wait control, and directly beneath it the consequence in plain text. An
-           abstract number is easy to set carelessly; a date is a commitment. *@
         <div class="wait">
             <div class="wait__control">
                 <span class="label">Hold for</span>
@@ -103,7 +101,6 @@
 
         @if (error is not null)
         {
-            @* Ink, never red. Red means permission. *@
             <p class="form-error" role="alert">@error</p>
         }
 
@@ -118,15 +115,12 @@
     [Parameter]
     public string Header { get; set; } = "Entered by hand";
 
-    /// <summary>The plain sentence shown when a shop refused. No red, no warning icon.</summary>
     [Parameter]
     public string? Message { get; set; }
 
-    /// <summary>What the scraper recovered, if anything. Null for pure manual entry.</summary>
     [Parameter]
     public ScrapeOutcome? Outcome { get; set; }
 
-    /// <summary>Prefills the link when the user pasted one that could not be read.</summary>
     [Parameter]
     public string? InitialUrl { get; set; }
 
@@ -143,8 +137,29 @@
     private string? error;
     private ElementReference firstInput;
 
-    // Fields the scraper may have supplied. Each setter records a touch, so a value the
-    // user has corrected stops rendering as an unverified guess.
+    private bool priceIsEstimate;
+    private bool estimateTouched;
+
+    private string? Url
+    {
+        get => url;
+        set
+        {
+            url = value;
+
+            if (!estimateTouched)
+            {
+                priceIsEstimate = EstimatedPrice.LikelyEstimate(value);
+            }
+        }
+    }
+
+    private bool PriceIsEstimate
+    {
+        get => priceIsEstimate;
+        set { priceIsEstimate = value; estimateTouched = true; }
+    }
+
     private readonly HashSet<ProductField> touched = [];
 
     private string? title;
@@ -170,8 +185,6 @@
 
         if (Outcome?.Info is { } info)
         {
-            // Assigned to the backing fields, not the properties: prefilling is not the
-            // user touching anything.
             title = info.Title;
             brand = info.Brand;
             imageUrl = info.ImageUrl;
@@ -179,6 +192,8 @@
             currency = info.Currency ?? settings.PreferredCurrency;
             url = info.Url;
         }
+
+        priceIsEstimate = EstimatedPrice.LikelyEstimate(url);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -189,10 +204,6 @@
         }
     }
 
-    /// <summary>
-    /// A value guessed from og:title or microdata renders faint until the user confirms it
-    /// by editing. A value read from Shopify or JSON-LD never does.
-    /// </summary>
     private string? Faint(ProductField field) =>
         Outcome is not null && !touched.Contains(field) && Outcome.IsUnverified(field) ? "faint" : null;
 
@@ -207,8 +218,6 @@
                 : null;
     }
 
-    // Formatted in local time: the stored value is UTC, and near local midnight a UTC
-    // format prints the wrong day. Same trap ListCard documents.
     private string? ReadyOn() =>
         waitDays is >= ItemService.MinWaitDays and <= ItemService.MaxWaitDays
             ? Time.GetUtcNow().AddDays(waitDays.Value).ToLocalTime().ToString("d MMM yyyy")
@@ -217,7 +226,7 @@
     private async Task Submit()
     {
         var draft = new ItemDraft(
-            url ?? string.Empty,
+            url,
             title ?? string.Empty,
             brand,
             imageUrl,
@@ -225,10 +234,9 @@
             currency ?? string.Empty,
             category,
             waitDays ?? 0,
-            note);
+            note,
+            priceIsEstimate);
 
-        // Same rules the service enforces, so the message here and the guard there can
-        // never disagree.
         error = ItemService.DescribeProblem(draft);
 
         if (error is not null)

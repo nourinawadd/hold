@@ -20,9 +20,6 @@ public sealed class SettingsService(IDbContextFactory<HoldDbContext> factory, Cu
             return settings;
         }
 
-        // A new account has no row yet, and creating one at signup would mean a second thing
-        // the sign-in path can fail at. Written on first read instead, with the spec defaults
-        // supplied by the database.
         settings = new Settings { OwnerId = owner };
         db.Settings.Add(settings);
         await db.SaveChangesAsync(cancellationToken);

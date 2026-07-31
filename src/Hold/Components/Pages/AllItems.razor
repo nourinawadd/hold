@@ -22,8 +22,6 @@
 }
 else
 {
-    @* Lists appear only while searching. With an empty box this page is the all-items view,
-       and a permanent list of lists would just restate /lists. *@
     @if (Searching && matchingLists.Count > 0)
     {
         var now = Time.GetUtcNow();
@@ -56,7 +54,7 @@ else
             @foreach (var item in items)
             {
                 <ItemCard @key="item.Id" Item="item" Now="now" ShowList
-                          OnStatusChange="ChangeStatus" />
+                          OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
             }
         </div>
     }
@@ -78,8 +76,6 @@ else
     {
         items = await ItemService.GetAllAsync(new ItemFilter(category, search));
 
-        // The strip offers only categories that occur, computed from the unfiltered set so
-        // choosing one does not make the others vanish.
         var all = await ItemService.GetAllAsync(new ItemFilter(null, search));
         present = all.Select(item => item.Category).ToHashSet();
 
@@ -117,9 +113,17 @@ else
         await Load();
     }
 
+    private async Task<PriceCheckResult> Recheck(int itemId)
+    {
+        var result = await ItemService.RecheckPriceAsync(itemId);
+
+        await Load();
+
+        return result;
+    }
+
     private string Count() => items.Count == 1 ? "1 item" : $"{items.Count} items";
 
-    // Names what was looked for rather than announcing a failure.
     private string Nothing() => (category, Searching) switch
     {
         (not null, true) => $"Nothing in {category} matches “{search!.Trim()}”.",

@@ -3,14 +3,8 @@ using Npgsql;
 
 namespace Hold.Tests;
 
-/// <summary>
-/// The URL a host hands out is not the form Npgsql accepts, and a mistake here surfaces only on
-/// deploy — as a connection failure with nothing useful in it. Pure string work, so it can be
-/// pinned down here instead.
-/// </summary>
 public class PostgresConnectionTests
 {
-    // The shape Neon actually gives you, password and host pattern included.
     private const string NeonUrl =
         "postgresql://neondb_owner:npg_A1b2C3d4E5f6@ep-quiet-fog-12345678.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
 
@@ -32,7 +26,6 @@ public class PostgresConnectionTests
     [Fact]
     public void AcceptsThePostgresSchemeToo()
     {
-        // Render writes postgres://, Neon writes postgresql://. Both are the same thing.
         var result = Parse("postgres://user:secret@db.example.com/hold?sslmode=require");
 
         Assert.Equal("db.example.com", result.Host);
@@ -62,8 +55,6 @@ public class PostgresConnectionTests
     [Fact]
     public void DecodesAnEscapedPassword()
     {
-        // A generated password can contain @ : / #, and it arrives percent-encoded. Failing to
-        // decode it produces a password that is wrong but looks plausible.
         var result = Parse("postgresql://user:p%40ss%3Aword%2F1@db.example.com/hold");
 
         Assert.Equal("p@ss:word/1", result.Password);
@@ -72,8 +63,6 @@ public class PostgresConnectionTests
     [Fact]
     public void SurvivesAPasswordContainingASemicolon()
     {
-        // A semicolon separates key-value pairs. If the builder did not escape it, the rest of
-        // the password would be read as another setting.
         var result = Parse("postgresql://user:pa%3Bss@db.example.com/hold");
 
         Assert.Equal("pa;ss", result.Password);
@@ -107,7 +96,6 @@ public class PostgresConnectionTests
     [InlineData("postgres")]
     public void DoesNotRequireSslForALocalContainer(string host)
     {
-        // The dev container serves no certificate, so requiring one would break local work.
         var result = Parse($"postgresql://hold:hold@{host}/hold");
 
         Assert.Equal(SslMode.Disable, result.SslMode);
@@ -122,7 +110,6 @@ public class PostgresConnectionTests
     [Fact]
     public void IgnoresSurroundingWhitespace()
     {
-        // Pasted into a dashboard field, a connection string often arrives with a stray newline.
         var result = Parse($"  {NeonUrl}\n");
 
         Assert.Equal("neondb", result.Database);
@@ -131,8 +118,6 @@ public class PostgresConnectionTests
     [Fact]
     public void PassesAnUnknownParameterByRatherThanGuessingAtIt()
     {
-        // channel_binding has no mapped Npgsql property. Dropping it is correct; inventing a
-        // setting name would turn a working URL into a startup crash.
         Assert.Equal(SslMode.Require, Parse(NeonUrl).SslMode);
     }
 }

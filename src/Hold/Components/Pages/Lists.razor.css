@@ -1,5 +1,3 @@
-/* Lists — the page frame. The card itself is styled in ListCard.razor.css. */
-
 .page-head {
     display: flex;
     align-items: baseline;
@@ -17,18 +15,11 @@
     gap: 1.5rem;
 }
 
-/* One card per row, each spanning the content column. The thumbnail strip is the reason:
-   five slots across 17rem drew each picture at about 40px, which is a swatch rather than a
-   product. Across the full 68rem they draw at roughly 208px and the item is legible. The
-   cost is scrolling, and it is worth it — this page is looked at, not scanned. */
-
 .list-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 2rem;
 }
-
-/* Empty state — an instruction and four ways to take it. */
 
 .empty {
     max-width: 34rem;
@@ -62,7 +53,6 @@
         margin-bottom: 2rem;
     }
 
-    /* Stacks rather than spreading the count away from the button. */
     .page-head__right {
         gap: 1rem;
     }

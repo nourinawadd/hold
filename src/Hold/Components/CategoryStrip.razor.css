@@ -1,19 +1,12 @@
-/* A single row of labels. Scrolls sideways on a narrow screen rather than wrapping to three
-   lines, which would push the grid off the fold. */
-
 .strip {
     display: flex;
     gap: 1.25rem;
 
-    /* Symmetric, and not just for looks: overflow-x makes this a scroll container, which clips
-       its children. The focus ring is drawn at outline-offset 2px, so without room above and
-       to the sides a keyboard user sees a ring with its top and edges sliced off. */
     padding: 0.25rem 0.25rem 0.75rem;
     margin-bottom: 1.5rem;
     overflow-x: auto;
     border-bottom: 0.5px solid var(--hairline);
 
-    /* Hide the scrollbar without hiding the ability to scroll. */
     scrollbar-width: none;
 }
 
@@ -40,7 +33,6 @@
     text-decoration: none;
 }
 
-/* The chosen one. Weight and colour rather than a box, so the row stays a row. */
 .strip__option--on {
     font-weight: 500;
     color: var(--ink);

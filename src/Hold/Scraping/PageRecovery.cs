@@ -2,51 +2,26 @@ using System.Text.Json;
 
 namespace Hold.Scraping;
 
-/// <summary>A page, and how it was got. The label becomes a reading step.</summary>
 public sealed record RecoveredPage(string Html, string Via);
 
-/// <summary>
-/// What to try when the plain request does not produce a readable page. Each attempt is
-/// independent and cheap; they run in order until one returns markup or all have failed.
-///
-/// <para>
-/// Deliberately excluded: solving a shop's bot challenge, and any path the site disallows
-/// in robots.txt. Pull&amp;Bear's product API answers perfectly and is
-/// <c>Disallow: /itxrest</c> — that is a no, and this respects it. Where a shop blocks
-/// readers outright, <see cref="UrlSlugParser"/> is the answer instead.
-/// </para>
-/// </summary>
 public sealed class PageRecovery(HttpClient http)
 {
-    /// <summary>
-    /// Fingerprints of the major bot managers' challenge pages. Matched on markers rather
-    /// than page size: a short page can be a real product page, and judging by length alone
-    /// threw away perfectly good minimal markup.
-    /// </summary>
     private static readonly string[] ChallengeMarkers =
     [
-        "bm-verify",              // Akamai Bot Manager — what Pull&Bear and Zara serve
+        "bm-verify",
         "/_sec/verify",
-        "__cf_chl",               // Cloudflare
+        "__cf_chl",
         "cf-browser-verification",
         "Checking your browser",
-        "px-captcha",             // PerimeterX
-        "/_Incapsula_Resource",   // Imperva
+        "px-captcha",
+        "/_Incapsula_Resource",
         "distil_r_captcha",
     ];
 
-    /// <summary>
-    /// True when a 200 is a checkpoint rather than the page. Size alone is not the signal —
-    /// the marker is, and the size bound only stops a long page that merely mentions one.
-    /// </summary>
     public static bool IsChallenge(string html) =>
         html.Length < 20_000
         && ChallengeMarkers.Any(marker => html.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// Same page, different spellings. A shop that 404s the apex may serve www, and a
-    /// tracking parameter can be the whole reason a request is refused.
-    /// </summary>
     public static IEnumerable<Uri> Variants(Uri url)
     {
         var otherHost = OtherHost(url.Host);
@@ -75,11 +50,6 @@ public sealed class PageRecovery(HttpClient http)
         }
     }
 
-    /// <summary>
-    /// The www/apex counterpart, or null when there isn't a sensible one. "www2.hm.com" is
-    /// a real subdomain, not a www-prefixed apex — prepending another "www." to it was a
-    /// wasted request to a host that has never existed.
-    /// </summary>
     private static string? OtherHost(string host)
     {
         if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
@@ -87,7 +57,6 @@ public sealed class PageRecovery(HttpClient http)
             return host[4..];
         }
 
-        // Only an apex gets a www. added; anything already subdomained is left alone.
         return host.Count(character => character == '.') == 1 ? "www." + host : null;
     }
 
@@ -118,10 +87,6 @@ public sealed class PageRecovery(HttpClient http)
         return null;
     }
 
-    /// <summary>
-    /// The Wayback Machine's last copy. Fine for a name and an image, and the reason price
-    /// is never taken from it: an archived price is a price from some other month.
-    /// </summary>
     public async Task<RecoveredPage?> TryArchiveAsync(
         Uri url,
         IProgress<ScrapeStep>? progress,
@@ -168,8 +133,6 @@ public sealed class PageRecovery(HttpClient http)
         return html is null ? null : new RecoveredPage(html, "an archived copy");
     }
 
-    /// <summary>Swallows everything. A recovery attempt that throws is worse than one that
-    /// fails, because the next attempt never gets its turn.</summary>
     private async Task<string?> FetchAsync(Uri url, CancellationToken cancellationToken)
     {
         try
@@ -190,8 +153,6 @@ public sealed class PageRecovery(HttpClient http)
 
             var html = await response.Content.ReadAsStringAsync(cancellationToken);
 
-            // A bot-challenge interstitial answers 200 with a page of challenge script.
-            // Treating that as the product page wastes every later step.
             return IsChallenge(html) ? null : html;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
@@ -200,10 +161,6 @@ public sealed class PageRecovery(HttpClient http)
         }
     }
 
-    /// <summary>
-    /// Names what actually differs. Two attempts that change different things must not
-    /// print the same line — the reading state is a record of what was tried.
-    /// </summary>
     private static string Describe(Uri original, Uri variant)
     {
         var hostChanged = !variant.Host.Equals(original.Host, StringComparison.OrdinalIgnoreCase);

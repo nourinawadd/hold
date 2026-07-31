@@ -1,8 +1,3 @@
-/* States 1 and 2 of the add flow. The panel surface itself is in app.css. */
-
-/* 1 — Paste. On an empty list this is the empty state: no separate call to action,
-   because the input is already focused and waiting. */
-
 .paste {
     display: flex;
     flex-direction: column;
@@ -27,16 +22,12 @@
     cursor: default;
 }
 
-/* The fallback, not the invitation. */
 .paste__manual {
     align-self: flex-start;
     text-transform: none;
     letter-spacing: 0;
     font-size: 0.8125rem;
 }
-
-/* 2 — Reading. The gap between paste and result is filled with the parser chain
-   reporting itself. */
 
 .reading {
     padding: 1.25rem 1.5rem 1.5rem;
@@ -54,7 +45,6 @@
     color: var(--ink);
 }
 
-/* The step still running. Completed steps stay in ink. */
 .step--current {
     color: var(--faint);
 }
@@ -64,8 +54,6 @@
     white-space: nowrap;
 }
 
-/* A hairline that fills as the chain proceeds. Honest about being indeterminate: it
-   animates only where motion is welcome. */
 .reading__rule {
     height: 1px;
     margin-top: 1rem;
@@ -102,7 +90,6 @@
         padding: 1.25rem;
     }
 
-    /* The button below the field: side by side leaves the input unusable at 380px. */
     .paste__row {
         flex-direction: column;
     }

@@ -3,10 +3,6 @@ using AngleSharp.Html.Parser;
 
 namespace Hold.Tests;
 
-/// <summary>
-/// Loads the saved pages. Three came from real shops, one is hand-authored because no real
-/// shop could be found still emitting microdata. Nothing here touches the network.
-/// </summary>
 internal static class Fixture
 {
     public const string ShopifyDoen = "shopify-doen.json";
@@ -25,7 +21,6 @@ internal static class Fixture
         await new HtmlParser().ParseDocumentAsync(html, CancellationToken.None);
 }
 
-/// <summary>Answers every request from a delegate, so tests never leave the machine.</summary>
 internal sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -42,11 +37,6 @@ internal sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> 
         }));
 }
 
-/// <summary>
-/// Collects steps synchronously. Progress&lt;T&gt; posts to the thread pool when there is no
-/// SynchronizationContext — which is the case in a test — so asserting on it directly is a
-/// race. The app has a Blazor circuit context and does not have this problem.
-/// </summary>
 internal sealed class StepCollector : IProgress<ScrapeStep>
 {
     public List<ScrapeStep> Steps { get; } = [];
@@ -54,7 +44,6 @@ internal sealed class StepCollector : IProgress<ScrapeStep>
     public void Report(ScrapeStep value) => Steps.Add(value);
 }
 
-/// <summary>Never answers. Used to prove a timeout surfaces as a message, not a crash.</summary>
 internal sealed class HangingHandler : HttpMessageHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(

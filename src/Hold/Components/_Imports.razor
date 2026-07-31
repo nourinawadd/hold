@@ -14,7 +14,4 @@
 @using Hold.Scraping
 @using Hold.Services
 
-@* Private by default. Every component in this tree requires a signed-in account unless it
-   says otherwise, so a page added later is protected by omission rather than by remembering.
-   The two exceptions carry [AllowAnonymous]: SignIn and SharedList. *@
 @attribute [Authorize]

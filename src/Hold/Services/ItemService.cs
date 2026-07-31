@@ -1,15 +1,12 @@
 using System.Globalization;
 using Hold.Data;
+using Hold.Scraping;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hold.Services;
 
-/// <summary>
-/// What the add form collects. Phase 5 fills one of these from a scrape instead of by
-/// hand, which is why it is separate from the entity.
-/// </summary>
 public sealed record ItemDraft(
-    string Url,
+    string? Url,
     string Title,
     string? Brand,
     string? ImageUrl,
@@ -17,47 +14,59 @@ public sealed record ItemDraft(
     string Currency,
     Category Category,
     int WaitDays,
-    string? Note);
+    string? Note,
+    bool PriceIsEstimate = false);
 
-/// <summary>What the all-items view is asking for. Both parts are optional.</summary>
 public sealed record ItemFilter(Category? Category = null, string? Search = null);
+
+public sealed record PriceCheck(decimal Saved, decimal Latest, string Currency)
+{
+    public bool Dropped => Latest < Saved;
+
+    public bool Rose => Latest > Saved;
+
+    public int PercentChange =>
+        Saved <= 0 ? 0 : (int)Math.Round(Math.Abs(Latest - Saved) / Saved * 100m, MidpointRounding.AwayFromZero);
+
+    public string Describe() => (Dropped, Rose) switch
+    {
+        (true, _) => $"Down {PercentChange}% since you saved it.",
+        (_, true) => $"Up {PercentChange}% since you saved it.",
+        _ => "The same as when you saved it.",
+    };
+}
+
+public sealed record PriceCheckResult(PriceCheck? Check, string Message);
 
 public sealed class ItemService(
     IDbContextFactory<HoldDbContext> factory,
     TimeProvider time,
-    CurrentUser user)
+    CurrentUser user,
+    ProductScraper scraper)
 {
-    // Mirrors the column limits in HoldDbContext.OnModelCreating.
     public const int UrlMaxLength = 2000;
     public const int TitleMaxLength = 300;
     public const int BrandMaxLength = 120;
     public const int NoteMaxLength = 1000;
 
-    // A zero-day wait is not a wait, and ten years is past the point of usefulness.
     public const int MinWaitDays = 1;
     public const int MaxWaitDays = 3650;
 
-    /// <summary>
-    /// The one place the item rules live. The form calls this to show a message; AddAsync
-    /// calls it again so a bad draft cannot reach the database by another route.
-    /// </summary>
     public static string? DescribeProblem(ItemDraft draft)
     {
         var url = draft.Url?.Trim();
 
-        if (string.IsNullOrEmpty(url))
+        if (!string.IsNullOrEmpty(url))
         {
-            return "An item needs a link.";
-        }
+            if (url.Length > UrlMaxLength)
+            {
+                return $"That link is {url.Length} characters. Keep it under {UrlMaxLength}.";
+            }
 
-        if (url.Length > UrlMaxLength)
-        {
-            return $"That link is {url.Length} characters. Keep it under {UrlMaxLength}.";
-        }
-
-        if (!IsWebAddress(url))
-        {
-            return "That link should start with http:// or https://.";
+            if (!IsWebAddress(url))
+            {
+                return "That link should start with http:// or https://.";
+            }
         }
 
         var title = draft.Title?.Trim();
@@ -92,7 +101,6 @@ public sealed class ItemService(
             }
         }
 
-        // Three letters, because the column is char(3) and every currency code is.
         var currency = draft.Currency?.Trim();
 
         if (string.IsNullOrEmpty(currency) || currency.Length != 3 || !currency.All(char.IsLetter))
@@ -118,38 +126,22 @@ public sealed class ItemService(
         return null;
     }
 
-    /// <summary>
-    /// Returns entities rather than a projection: Item already carries ReadyAt, IsReady,
-    /// and DaysWaited, and projecting would mean writing that arithmetic a second time.
-    /// </summary>
     public async Task<IReadOnlyList<Item>> GetForListAsync(
         int listId,
         CancellationToken cancellationToken = default)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
-        // Scoped to the owner as well as the list. Filtering on WishListId alone was safe when
-        // there was one account; now it would hand somebody another person's items to anyone
-        // who guessed a list id, whatever the page above happened to check first.
         var owner = await user.RequireIdAsync();
 
-        // No OrderBy in the query. The sort key is readiness, which is computed from SavedAt and
-        // WaitDays at the moment of the query rather than stored, so it is not a column any
-        // database could order by. Materialise first, then sort below.
         var items = await db.Items
             .AsNoTracking()
             .Where(item => item.WishListId == listId && item.WishList.OwnerId == owner)
             .ToListAsync(cancellationToken);
 
-        // Readiness is computed, never stored, so the ordering depends on the moment the
-        // query ran rather than on a column some background job had to keep fresh.
         return Sort(items, time.GetUtcNow());
     }
 
-    /// <summary>
-    /// Every item across every list, filtered and sorted by the same rules as one list.
-    /// Includes the parent so a card can name its list and so search can match on it.
-    /// </summary>
     public async Task<IReadOnlyList<Item>> GetAllAsync(
         ItemFilter filter,
         CancellationToken cancellationToken = default)
@@ -164,10 +156,6 @@ public sealed class ItemService(
             .Where(item => item.WishList.OwnerId == owner)
             .ToListAsync(cancellationToken);
 
-        // Filtering in memory, which the sort already requires. It is also the only way to keep
-        // the accent rule below: Postgres cannot match "doen" against "Dôen" without the
-        // unaccent extension, which a managed instance will not necessarily have enabled. Doing
-        // it here keeps matching identical to what the tests exercise, on any database.
         return Sort(
             items.Where(item =>
                 (filter.Category is null || item.Category == filter.Category)
@@ -175,10 +163,6 @@ public sealed class ItemService(
             time.GetUtcNow());
     }
 
-    /// <summary>
-    /// Title, brand, or the name of the list it sits in. Accent- and case-insensitive, so
-    /// "doen" finds "Dôen" — an ordinal comparison would not, and shops write accents.
-    /// </summary>
     public static bool Matches(Item item, string? search)
     {
         var term = search?.Trim();
@@ -198,12 +182,6 @@ public sealed class ItemService(
         && CultureInfo.InvariantCulture.CompareInfo.IndexOf(
             haystack, needle, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
 
-    /// <summary>
-    /// Three tiers. Closed items sink to the bottom; among what is still being waited on,
-    /// anything whose wait has elapsed rises to the top; and within each group the oldest
-    /// comes first — which is days-waited descending, because the longest-held thing is the
-    /// most interesting thing.
-    /// </summary>
     public static List<Item> Sort(IEnumerable<Item> items, DateTimeOffset now) =>
         items
             .OrderBy(item => item.Status == ItemStatus.Waiting ? 0 : 1)
@@ -237,15 +215,17 @@ public sealed class ItemService(
         }
 
         var now = time.GetUtcNow();
+        var url = Clean(draft.Url);
 
         var item = new Item
         {
             WishListId = listId,
-            Url = draft.Url.Trim(),
+            Url = url,
             Title = draft.Title.Trim(),
             Brand = Clean(draft.Brand),
             ImageUrl = Clean(draft.ImageUrl),
             Price = draft.Price,
+            PriceIsEstimate = draft.PriceIsEstimate || EstimatedPrice.LikelyEstimate(url),
             Currency = draft.Currency.Trim().ToUpperInvariant(),
             Category = draft.Category,
             WaitDays = draft.WaitDays,
@@ -256,7 +236,6 @@ public sealed class ItemService(
 
         db.Items.Add(item);
 
-        // Adding to a list is activity on that list, so its card carries a fresh time.
         list.UpdatedAt = now;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -264,7 +243,6 @@ public sealed class ItemService(
         return item.Id;
     }
 
-    /// <summary>Returns false when the item no longer exists — a stale card, not an error.</summary>
     public async Task<bool> SetStatusAsync(
         int itemId,
         ItemStatus status,
@@ -272,9 +250,6 @@ public sealed class ItemService(
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
-        // The owner check belongs in the query, not after it. Fetching by id alone and then
-        // comparing would still have loaded a stranger's row into memory, and a later edit
-        // could easily forget the comparison; an unmatched owner simply finds nothing here.
         var owner = await user.RequireIdAsync();
 
         var item = await db.Items
@@ -292,7 +267,6 @@ public sealed class ItemService(
 
         item.Status = status;
 
-        // Reopening clears the closing date rather than leaving a stale one behind.
         item.ClosedAt = status == ItemStatus.Waiting ? null : now;
 
         item.WishList.UpdatedAt = now;
@@ -300,6 +274,66 @@ public sealed class ItemService(
         await db.SaveChangesAsync(cancellationToken);
 
         return true;
+    }
+
+    public async Task<PriceCheckResult> RecheckPriceAsync(
+        int itemId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var owner = await user.RequireIdAsync();
+
+        var item = await db.Items
+            .Include(entity => entity.WishList)
+            .SingleOrDefaultAsync(
+                entity => entity.Id == itemId && entity.WishList.OwnerId == owner,
+                cancellationToken);
+
+        if (item is null)
+        {
+            return new PriceCheckResult(null, "That item is no longer here.");
+        }
+
+        if (item.Url is null)
+        {
+            return new PriceCheckResult(null, "There is no link to read.");
+        }
+
+        if (item.PriceIsEstimate)
+        {
+            return new PriceCheckResult(null, "This price is your estimate, so there is nothing to re-read.");
+        }
+
+        if (item.Price is not { } saved)
+        {
+            return new PriceCheckResult(null, "There is no saved price to compare against.");
+        }
+
+        var outcome = await scraper.ReadAsync(item.Url, null, cancellationToken);
+
+        if (outcome.Info.Price is not { } found
+            || !outcome.Has(ProductField.Price)
+            || outcome.IsUnverified(ProductField.Price))
+        {
+            return new PriceCheckResult(null, "The price could not be read just now.");
+        }
+
+        if (!string.Equals(outcome.Info.Currency, item.Currency, StringComparison.OrdinalIgnoreCase))
+        {
+            return new PriceCheckResult(
+                null,
+                $"The shop is quoting {outcome.Info.Currency ?? "another currency"} now, not {item.Currency}.");
+        }
+
+        item.LatestPrice = found;
+        item.LatestPriceAt = time.GetUtcNow();
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        var check = new PriceCheck(saved, found, item.Currency);
+
+        return new PriceCheckResult(check, check.Describe());
     }
 
     private static bool IsWebAddress(string value) =>

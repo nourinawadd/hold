@@ -1,34 +1,13 @@
 namespace Hold.Scraping;
 
-/// <summary>
-/// Asks a shop's CDN for an image the size it will actually be drawn at.
-///
-/// <para>
-/// Shops serve their originals: a Dôen product photo measured 2048×1807 and 718KB. Drawn
-/// into a 73-pixel thumbnail that is a 28× reduction, which browsers alias badly — the
-/// picture looks coarse despite being far larger than the slot. Requesting a fitting size
-/// fixes the look and takes the download from 718KB to 11KB.
-/// </para>
-/// </summary>
 public static class ProductImage
 {
-    /// <summary>Roughly twice the drawn size, so the picture stays sharp on a dense screen.</summary>
     public const int ThumbnailWidth = 160;
 
-    /// <summary>
-    /// The same strip on the Lists page, where a card spans the content column and each slot
-    /// draws at about 208px. Asking for 160 there would upscale — the picture would be softer
-    /// on the larger card than on the small one, which is backwards.
-    /// </summary>
     public const int StripWidth = 420;
 
-    /// <summary>For an item card and the add panel's preview.</summary>
     public const int CardWidth = 480;
 
-    /// <summary>
-    /// Parameter names CDNs use for width. Rewriting one that is already present is safe —
-    /// the shop put it there, so the endpoint understands it.
-    /// </summary>
     private static readonly string[] WidthParameters = ["width", "w", "imwidth", "sw", "wid"];
 
     public static string? AtWidth(string? url, int width)
@@ -58,9 +37,6 @@ public static class ProductImage
 
         if (!replaced)
         {
-            // No width to rewrite. Adding one is only safe where the convention is known;
-            // an unrecognised CDN might treat an unknown parameter as a cache-buster or a
-            // signature mismatch, so its URL is left exactly as the shop gave it.
             if (!IsShopify(uri))
             {
                 return url;
@@ -76,7 +52,6 @@ public static class ProductImage
         }.Uri.ToString();
     }
 
-    /// <summary>Shopify serves images from two shapes, both of which honour ?width=.</summary>
     private static bool IsShopify(Uri uri) =>
         uri.Host.Equals("cdn.shopify.com", StringComparison.OrdinalIgnoreCase)
         || uri.AbsolutePath.StartsWith("/cdn/shop/", StringComparison.OrdinalIgnoreCase);

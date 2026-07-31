@@ -1,7 +1,3 @@
-/* Shared list — the visitor's view. Borrows the shapes of ListDetail rather than inventing
-   new ones, because scoped styles do not cross components and this page has no access to
-   that file's rules. */
-
 .page-head {
     display: flex;
     align-items: baseline;
@@ -37,8 +33,6 @@
     color: var(--mute);
 }
 
-/* Says where this came from without inviting the visitor anywhere. Not a link: the owner
-   shared one list, not an account. */
 .shared__foot {
     margin-top: 4rem;
     padding-top: 1rem;

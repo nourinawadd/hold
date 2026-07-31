@@ -1,10 +1,5 @@
 namespace Hold.Tests;
 
-/// <summary>
-/// The rule these all defend: a shop that refuses must produce a sentence, never an
-/// exception. The add flow falls through to manual entry in every case, so a throw here
-/// would take the whole panel down.
-/// </summary>
 public class ProductScraperTests
 {
     private const string ProductUrl = "https://example.com/products/a-thing";
@@ -23,18 +18,13 @@ public class ProductScraperTests
 
         Assert.NotNull(outcome.Message);
 
-        // Every refusal ends with the same instruction, because the next move is the same.
         Assert.Contains("Fill in what you know", outcome.Message);
         Assert.Equal(ProductUrl, outcome.Info.Url);
 
-        // A refusal is no longer empty-handed: the link itself still names the product, so
-        // the panel opens part-filled with a faint title rather than a blank form. The
-        // sentence stays to explain why the fields are thin.
         Assert.Equal("A Thing", outcome.Info.Title);
         Assert.Equal([ScrapeOutcome.UrlName], outcome.Info.ReadFrom);
         Assert.True(outcome.IsUnverified(ProductField.Title));
 
-        // Still nothing invented about money.
         Assert.Null(outcome.Info.Price);
         Assert.Null(outcome.Info.Currency);
     }
@@ -112,17 +102,12 @@ public class ProductScraperTests
         Assert.Equal(68.00m, outcome.Info.Price);
         Assert.Equal(ScrapeOutcome.ShopifyName, outcome.Sources[ProductField.Title]);
 
-        // Shopify's .js payload has no currency field, so the page is still fetched to look
-        // for one. Completeness is judged on all four fields, not just the ones it filled.
         Assert.True(pageRequested, "the page is still fetched when Shopify leaves a field empty");
     }
 
     [Fact]
     public async Task KeepsWhatShopifyGaveWhenThePageFetchThenFails()
     {
-        // Found live on margauxny.com: the .js endpoint answers, and the page it came from
-        // returns 404. Losing a good read because the follow-up request failed would be
-        // throwing away data already in hand.
         using var http = new HttpClient(new StubHandler(request =>
             request.RequestUri!.AbsolutePath.EndsWith(".js", StringComparison.Ordinal)
                 ? new HttpResponseMessage(HttpStatusCode.OK)
@@ -142,7 +127,6 @@ public class ProductScraperTests
     [Fact]
     public async Task StillRefusesWhenTheFailureLeftNothing()
     {
-        // Same shape, but nothing was gathered first, so the refusal stands.
         using var http = StubHandler.Returning(HttpStatusCode.NotFound);
 
         var outcome = await new ProductScraper(http).ReadAsync("https://example.com/thing");
@@ -154,8 +138,6 @@ public class ProductScraperTests
     [Fact]
     public async Task StopsAskingOnceEveryFieldIsFilled()
     {
-        // Complete JSON-LD, with microdata below it disagreeing about everything. The
-        // chain should stop at JSON-LD and never consult the weaker source.
         const string html = """
             <html><head>
               <script type="application/ld+json">
@@ -182,7 +164,6 @@ public class ProductScraperTests
         Assert.Equal(12.00m, outcome.Info.Price);
         Assert.Equal("EUR", outcome.Info.Currency);
 
-        // Microdata never contributed, so it is not named as a source.
         Assert.DoesNotContain(ScrapeOutcome.MicrodataName, outcome.Info.ReadFrom);
     }
 
@@ -210,14 +191,10 @@ public class ProductScraperTests
 
         var texts = collector.Steps.Select(step => step.Text).ToList();
 
-        // The first line names the shop, which is what the reading state uses as its
-        // heading. The rest are the chain reporting itself.
         Assert.Equal("Reading example.com", texts[0]);
         Assert.Contains("Shopify storefront detected", texts);
         Assert.Contains("Reading product data", texts);
 
-        // At least one step carries a real elapsed time — these are measurements, not
-        // decoration.
         Assert.Contains(collector.Steps, step => step.Elapsed is not null);
     }
 
@@ -235,8 +212,6 @@ public class ProductScraperTests
     [Fact]
     public async Task MergesAcrossStrategiesAndRecordsWhichSuppliedWhat()
     {
-        // JSON-LD has the name but no price; OpenGraph carries the price. The merge should
-        // take each from where it exists, and remember where that was.
         const string html = """
             <html><head>
               <meta property="og:title" content="An OG Title" />
@@ -259,7 +234,6 @@ public class ProductScraperTests
         Assert.Equal(ScrapeOutcome.JsonLdName, outcome.Sources[ProductField.Title]);
         Assert.Equal(ScrapeOutcome.OpenGraphName, outcome.Sources[ProductField.Price]);
 
-        // Which is what drives the faint rendering.
         Assert.False(outcome.IsUnverified(ProductField.Title));
         Assert.True(outcome.IsUnverified(ProductField.Price));
     }

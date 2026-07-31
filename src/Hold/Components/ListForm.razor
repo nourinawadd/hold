@@ -1,10 +1,6 @@
-@* Create and rename share this panel. Rename opens it with the fields prefilled. *@
-
 <form class="list-form" @onsubmit="Submit" @onsubmit:preventDefault>
     <div class="field">
         <label class="label" for="list-name">Name</label>
-        @* No maxlength: let an over-long name reach the validator, so the limit is
-           explained once rather than silently enforced by a control that stops typing. *@
         <input id="list-name" @ref="nameInput" @bind="name" @bind:event="oninput" autocomplete="off" />
     </div>
 
@@ -13,8 +9,6 @@
         <input id="list-description" @bind="description" @bind:event="oninput" autocomplete="off" />
     </div>
 
-    @* A budget is optional, and scoped to one currency: the bar counts only items quoted in
-       it, because amounts are never converted. *@
     <div class="money">
         <div class="field">
             <label class="label" for="list-budget">Budget — optional</label>
@@ -43,7 +37,6 @@
 
     @if (error is not null)
     {
-        @* Ink, never red. Red means permission. *@
         <p class="form-error" role="alert">@error</p>
     }
 
@@ -54,10 +47,6 @@
 </form>
 
 @code {
-    /// <summary>
-    /// The four names from the spec's empty state, offered as one-click fills. Public so
-    /// the empty state on Lists.razor offers the same four without a second copy.
-    /// </summary>
     public static readonly string[] Suggestions = ["Wishlist", "Gifts", "Travel", "Home"];
 
     [Parameter]
@@ -91,8 +80,6 @@
     private string? error;
     private ElementReference nameInput;
 
-    // Seeded once. Doing this in OnParametersSet would overwrite what the user is typing
-    // every time the parent re-renders.
     protected override void OnInitialized()
     {
         name = InitialName;
@@ -114,8 +101,6 @@
         var draft = new ListService.ListDraft(
             name ?? string.Empty, description, budgetAmount, budgetCurrency);
 
-        // Same rules the service enforces, so the message here and the guard there can
-        // never disagree.
         error = ListService.DescribeProblem(draft);
 
         if (error is not null)

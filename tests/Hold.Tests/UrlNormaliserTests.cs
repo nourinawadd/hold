@@ -20,7 +20,6 @@ public class UrlNormaliserTests
     [Fact]
     public void KeepsParametersThatIdentifyTheProduct()
     {
-        // ?variant= picks the colour and size. Dropping it would save the wrong thing.
         Assert.Equal(
             $"{Clean}?variant=42553859211360",
             UrlNormaliser.Normalise($"{Clean}?variant=42553859211360&utm_source=instagram#reviews"));

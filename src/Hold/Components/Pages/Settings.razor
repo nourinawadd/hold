@@ -21,9 +21,6 @@ else
             <input id="wait-days" type="number" min="@ItemService.MinWaitDays" max="@ItemService.MaxWaitDays"
                    @bind="waitDays" @bind:event="oninput" autocomplete="off" />
 
-            @* The same move the add panel makes: an abstract number is easy to set carelessly,
-               a date is a commitment. Shown here so the default is chosen with its meaning
-               visible rather than discovered later on an item. *@
             <p class="settings__consequence">
                 Something saved today would be ready on @ReadyOn().
             </p>
@@ -42,7 +39,6 @@ else
 
         @if (problem is not null)
         {
-            @* Ink, not red. Red means an elapsed wait and nothing else. *@
             <p class="settings__problem">@problem</p>
         }
 
@@ -81,8 +77,6 @@ else
     {
         saved = false;
 
-        // Bounded by the same constants the item form uses, so a wait set here cannot be one
-        // the add panel would refuse.
         if (waitDays < ItemService.MinWaitDays || waitDays > ItemService.MaxWaitDays)
         {
             problem = $"A wait is between {ItemService.MinWaitDays} and {ItemService.MaxWaitDays} days.";

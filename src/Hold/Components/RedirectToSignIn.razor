@@ -1,10 +1,3 @@
-@* Sends an unauthenticated visitor to the sign-in page, carrying where they were headed so
-   they land there afterwards rather than on the lists index.
-
-   A component rather than a redirect in Routes.razor because NavigateTo has to run from a
-   lifecycle method; done during initialisation it also fires on the prerender pass, which
-   turns into a real HTTP redirect before any markup is sent. *@
-
 @attribute [AllowAnonymous]
 @inject NavigationManager Navigation
 
@@ -13,8 +6,6 @@
     {
         var target = Navigation.ToBaseRelativePath(Navigation.Uri);
 
-        // Nowhere to return to from the sign-in page itself, and passing it as a return URL
-        // would bounce a signed-in visitor straight back to signing in.
         var query = string.IsNullOrEmpty(target) || target.StartsWith("sign-in", StringComparison.OrdinalIgnoreCase)
             ? string.Empty
             : $"?returnUrl={Uri.EscapeDataString("/" + target)}";

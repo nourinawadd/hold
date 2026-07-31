@@ -1,4 +1,3 @@
-@* The add flow: paste, reading, then found or refused. The last two are the same panel. *@
 @inject ProductScraper Scraper
 
 @if (state is State.Paste)
@@ -13,14 +12,12 @@
                 <button type="submit" disabled="@(string.IsNullOrWhiteSpace(pasted))">Read page</button>
             </div>
 
-            @* Quiet, because it is the fallback, not the invitation. *@
             <button type="button" class="quiet paste__manual" @onclick="EnterByHand">or enter it by hand</button>
         </form>
     </div>
 }
 else if (state is State.Reading)
 {
-    @* The parser chain reporting itself. Real steps, not a fake spinner. *@
     <div class="add-panel">
         <p class="panel-head">@(steps.Count > 0 ? steps[0].Text : "Reading")</p>
 
@@ -66,7 +63,6 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // The paste field is the empty state, so it is already focused and waiting.
         if (firstRender && state is State.Paste)
         {
             await pasteInput.FocusAsync();
@@ -83,8 +79,6 @@ else
         state = State.Reading;
         steps.Clear();
 
-        // Progress arrives off the render thread, so each step is marshalled back before
-        // touching the component.
         var progress = new Progress<ScrapeStep>(step =>
         {
             steps.Add(step);
@@ -99,7 +93,6 @@ else
 
     private void EnterByHand()
     {
-        // Straight to the editable panel with empty fields, as the spec's quiet link says.
         outcome = null;
         panelKey++;
         state = State.Editing;

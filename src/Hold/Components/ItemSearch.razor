@@ -1,5 +1,3 @@
-@* Narrows as you type — no submit button, because there is nothing to submit to. *@
-
 <div class="search">
     <label class="label" for="@id">Search</label>
 
@@ -24,7 +22,6 @@
     [Parameter]
     public EventCallback<string?> ValueChanged { get; set; }
 
-    // Unique per instance so the label binds correctly when two searches share a page.
     private readonly string id = $"search-{Guid.NewGuid():N}";
 
     private Task Typed(ChangeEventArgs args) =>

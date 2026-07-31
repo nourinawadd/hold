@@ -1,7 +1,3 @@
-@* AuthorizeRouteView rather than RouteView, so the [Authorize] attribute in _Imports.razor
-   is actually enforced at the route rather than merely declared. Anyone not signed in is
-   sent to the sign-in page instead of being shown an empty version of someone's lists. *@
-
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">

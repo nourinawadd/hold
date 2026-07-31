@@ -16,7 +16,6 @@ public class ShopifyParserTests
         Assert.Equal("LONG SCOOP NECK SLIP -- BLACK", info.Title);
         Assert.Equal("DOEN", info.Brand);
 
-        // The whole point of this parser's price handling: Shopify quotes 6800 cents.
         Assert.Equal(68.00m, info.Price);
 
         Assert.NotNull(info.ImageUrl);
@@ -35,7 +34,6 @@ public class ShopifyParserTests
     [Fact]
     public async Task IgnoresAStorefrontThatAnswersWithHtml()
     {
-        // A shop that does not know the .js route often serves the page instead.
         using var http = StubHandler.Serving("<html><body>not json</body></html>", "text/html");
 
         Assert.Null(await new ShopifyParser().TryParseAsync(new ScrapeContext(ProductUrl, null, http), default));
@@ -57,8 +55,6 @@ public class JsonLdParserTests
     [Fact]
     public async Task ReadsAProductGroupFromTheSavedNaadamPage()
     {
-        // This page has no "Product" node at all — it is a ProductGroup carrying seven
-        // variants. A parser that only accepted Product would read nothing here.
         using var document = await Fixture.DocumentAsync(Fixture.JsonLdNaadam);
         using var http = new HttpClient();
 
@@ -68,7 +64,6 @@ public class JsonLdParserTests
         Assert.Equal("Women's Snoopy Hug Cashmere Sweater", info.Title);
         Assert.Equal("Naadam", info.Brand);
 
-        // Price and image live on the variants, not the group.
         Assert.Equal("USD", info.Currency);
         Assert.NotNull(info.Price);
         Assert.NotNull(info.ImageUrl);
@@ -82,7 +77,6 @@ public class JsonLdParserTests
 
         var info = await new JsonLdParser().TryParseAsync(new ScrapeContext(PageUrl, document, http), default);
 
-        // The first variant is called "Black / XXS". Nobody saved that.
         Assert.DoesNotContain("XXS", info!.Title);
     }
 
@@ -97,14 +91,11 @@ public class JsonLdParserTests
 
         Assert.NotNull(info);
 
-        // Found inside @graph, behind an unparseable block and a non-Product array.
         Assert.Equal("Wool Overshirt", info.Title);
 
-        // brand as an object, image as an array, @type as an array containing Product.
         Assert.Equal("Atelier Nord", info.Brand);
         Assert.Equal("https://cdn.ateliernord.example/overshirt-1.jpg", info.ImageUrl);
 
-        // offers as an array using lowPrice, with a European-formatted string.
         Assert.Equal(1234.56m, info.Price);
         Assert.Equal("EUR", info.Currency);
     }
@@ -135,7 +126,6 @@ public class OpenGraphParserTests
         Assert.NotNull(info);
         Assert.Contains("Chic Cook Set", info.Title);
 
-        // The only page found in the wild carrying both of these.
         Assert.Equal(355.00m, info.Price);
         Assert.Equal("USD", info.Currency);
 
@@ -145,7 +135,6 @@ public class OpenGraphParserTests
 
     [Fact]
     public void IsNotTrustedInFullInk() =>
-        // Drives the faint rendering: og:title is a guess, not a reading.
         Assert.False(new OpenGraphParser().StrongSource);
 
     [Fact]
@@ -176,10 +165,8 @@ public class MicrodataParserTests
         Assert.NotNull(info);
         Assert.Equal("Brass Reading Lamp", info.Title);
 
-        // The nested brand scope, not the product name again.
         Assert.Equal("Corvid Supply", info.Brand);
 
-        // A thousands separator straight out of a template.
         Assert.Equal(1248.00m, info.Price);
         Assert.Equal("GBP", info.Currency);
     }

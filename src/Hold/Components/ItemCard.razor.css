@@ -1,6 +1,3 @@
-/* Item card. The only file in Hold that may use --permission, and only on an item whose
-   wait has elapsed. Not on errors, not on delete, not on over-budget. */
-
 .item-card {
     display: flex;
     flex-direction: column;
@@ -39,9 +36,6 @@
 .item-card__body h3 {
     margin-bottom: 0.1rem;
 
-    /* At 380px the item grid is two columns of about 162px. A title with one long unbroken
-       token — exactly what UrlSlugParser yields from a blocked shop — would otherwise push out
-       of the card and scroll the whole page sideways. */
     overflow-wrap: anywhere;
 }
 
@@ -58,11 +52,34 @@
     color: var(--mute);
     font-style: italic;
 
-    /* Free text the user typed — it can contain anything, including a pasted URL. */
     overflow-wrap: anywhere;
 }
 
-/* Which list this belongs to — shown only on /items. */
+.price__kind {
+    margin-top: 0.15rem;
+}
+
+.price__now {
+    margin-top: 0.15rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.price__said {
+    margin-top: 0.4rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+
+    overflow-wrap: anywhere;
+}
+
+.price,
+.price__now {
+    overflow-wrap: anywhere;
+}
+
 .item-card__list {
     align-self: flex-start;
     font-size: 0.6875rem;
@@ -74,9 +91,6 @@
 .item-card__list:hover {
     color: var(--ink);
 }
-
-/* The tally — how long this has been wanted. The largest thing on the card, because it is
-   the one number the app exists to show. */
 
 .tally {
     margin-top: auto;
@@ -103,7 +117,6 @@
     color: var(--mute);
 }
 
-/* The date the wait ends. The consequence, stated plainly. */
 .tally__date {
     margin-top: 0.5rem;
     font-size: 0.6875rem;
@@ -111,8 +124,6 @@
     letter-spacing: 0.14em;
     color: var(--ink);
 }
-
-/* Progress hairline: elapsed against the wait, no numbers of its own. */
 
 .wait-rule {
     height: 1px;
@@ -125,8 +136,6 @@
     background: var(--ink);
 }
 
-/* Ready. The wait has elapsed and the item may be bought — the one thing red is for. */
-
 .tally--ready .tally__count,
 .tally--ready .tally__label {
     color: var(--permission);
@@ -136,9 +145,6 @@
     background: var(--permission);
 }
 
-/* Closed: a record of how long the decision took. Never red — IsReady is false for
-   anything that is not still waiting. */
-
 .tally--closed .tally__count {
     font-weight: 400;
     color: var(--mute);
@@ -147,12 +153,16 @@
 .item-card__actions {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
     padding: 0 1rem 0.75rem;
 }
 
-/* Closed items stay on the list as a record of what was decided, quieted so they do not
-   compete with what is still being waited for. */
+.item-card__actions button {
+    max-width: 100%;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
 
 .item-card--closed {
     background: transparent;

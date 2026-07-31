@@ -11,7 +11,6 @@
 }
 else if (detail is null)
 {
-    @* Deleted, or a bad link. A plain sentence — no red, no error styling. *@
     <a class="back" href="/lists">← Lists</a>
 
     <div class="page-head">
@@ -43,9 +42,6 @@ else
         <p class="description">@detail.Description</p>
     }
 
-    @* The paste field is always here, and on an empty list it *is* the empty state —
-       focused and waiting, with no separate call to action. Keyed so a completed add
-       hands back a fresh panel in its paste state. *@
     <AddItem @key="addKey" OnSubmit="Add" />
 
     @if (items.Count == 0)
@@ -59,7 +55,6 @@ else
     }
     else
     {
-        @* Filtering the grid, so it sits with the grid rather than above the paste field. *@
         <CategoryStrip Selected="category" Available="present" SelectedChanged="c => category = c" />
         <ItemSearch Value="@search" ValueChanged="s => search = s" />
     }
@@ -70,20 +65,17 @@ else
     }
     else if (items.Count > 0)
     {
-        // Read once per render so every card agrees on which items are ready.
         var now = Time.GetUtcNow();
 
         <div class="item-grid">
             @foreach (var item in Waiting)
             {
-                <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" />
+                <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
             }
         </div>
 
         @if (Closed.Any())
         {
-            @* A structural rule, because what you have decided about is a different zone
-               from what you are still waiting on. *@
             <div class="closed-rule">
                 <span class="label">Decided</span>
             </div>
@@ -91,7 +83,7 @@ else
             <div class="item-grid">
                 @foreach (var item in Closed)
                 {
-                    <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" />
+                    <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
                 }
             </div>
         }
@@ -99,8 +91,6 @@ else
 
     <ListShare ListId="Id" />
 
-    @* Pinned at the foot of the content. Counts only its own currency; the totals it cannot
-       count are named beneath it. *@
     <BudgetBar Amount="detail.BudgetAmount" Currency="@detail.BudgetCurrency" Totals="detail.Totals" />
 }
 
@@ -108,8 +98,6 @@ else
     [Parameter]
     public int Id { get; set; }
 
-    // Qualified: this page compiles to a class also called ListDetail, which would
-    // otherwise shadow the record the service returns.
     private Hold.Services.ListDetail? detail;
 
     private IReadOnlyList<Item> items = [];
@@ -119,26 +107,17 @@ else
     private Category? category;
     private string? search;
 
-    /// <summary>
-    /// The filter runs over what is already loaded — no round trip to narrow a list that is
-    /// in hand. Reuses ItemService.Matches so this page and /items agree on what a match is.
-    /// </summary>
     private IReadOnlyList<Item> Shown => items
         .Where(item => (category is null || item.Category == category)
             && ItemService.Matches(item, search))
         .ToList();
 
-    /// <summary>Computed from every item, not the filtered set, so choosing a category does
-    /// not make the other options disappear.</summary>
     private IReadOnlySet<Category> present => items.Select(item => item.Category).ToHashSet();
 
-    // ItemService.Sort already puts waiting first, ready ahead of the rest, then oldest
-    // first within each group — so filtering here preserves that order.
     private IEnumerable<Item> Waiting => Shown.Where(item => item.Status == ItemStatus.Waiting);
 
     private IEnumerable<Item> Closed => Shown.Where(item => item.Status != ItemStatus.Waiting);
 
-    // Names what was looked for rather than announcing a failure.
     private string Nothing() => (category, string.IsNullOrWhiteSpace(search)) switch
     {
         (not null, false) => $"Nothing in {category} matches “{search!.Trim()}”.",
@@ -147,8 +126,6 @@ else
         _ => "Nothing here.",
     };
 
-    // OnParametersSetAsync, not OnInitializedAsync: navigating between two list ids reuses
-    // this component instance, and OnInitialized would not run again.
     protected override async Task OnParametersSetAsync()
     {
         loaded = false;
@@ -166,10 +143,8 @@ else
     {
         await ItemService.AddAsync(Id, draft);
 
-        // A new key resets the add flow to its paste state, ready for the next link.
         addKey++;
 
-        // Re-read the list too: the count and the totals both moved.
         await Load();
     }
 
@@ -179,15 +154,22 @@ else
         await Load();
     }
 
+    private async Task<PriceCheckResult> Recheck(int itemId)
+    {
+        var result = await ItemService.RecheckPriceAsync(itemId);
+
+        await Load();
+
+        return result;
+    }
+
     private string Count() => detail!.ItemCount == 1 ? "1 item" : $"{detail.ItemCount} items";
 
-    // One figure per currency; amounts are never combined across currencies.
     private string Totals() =>
         detail!.Totals.Count == 0
             ? "—"
-            : string.Join(" · ", detail.Totals.Select(total => $"{total.Amount:N2} {total.Currency}"));
+            : string.Join(" · ", detail.Totals.Select(total => total.Display()));
 
-    // One line of text. The budget bar itself is phase 7.
     private string? Budget() =>
         detail!.BudgetAmount is { } amount && detail.BudgetCurrency is { } currency
             ? $"Budget {amount:N2} {currency}"

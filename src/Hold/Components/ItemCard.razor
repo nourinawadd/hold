@@ -1,18 +1,16 @@
-@* One item, and how long it has been wanted. The count is the point of the app, so it is
-   the largest thing on the card. When the wait elapses it turns --permission — the only
-   place in Hold where red is allowed. *@
-
 <article class="item-card @(IsClosed ? "item-card--closed" : null)">
-    <a class="item-card__image" href="@Item.Url" target="_blank" rel="noopener noreferrer">
-        @if (Item.ImageUrl is { } source)
-        {
-            <img src="@ProductImage.AtWidth(source, ProductImage.CardWidth)" alt="" loading="lazy" />
-        }
-        else
-        {
-            <div class="item-card__noimage"></div>
-        }
-    </a>
+    @if (Item.Url is { } link)
+    {
+        <a class="item-card__image" href="@link" target="_blank" rel="noopener noreferrer">
+            @Thumbnail
+        </a>
+    }
+    else
+    {
+        <div class="item-card__image">
+            @Thumbnail
+        </div>
+    }
 
     <div class="item-card__body">
         <h3>@Item.Title</h3>
@@ -21,18 +19,32 @@
 
         @if (ShowList && Item.WishList is { } list)
         {
-            @* Only on the all-items view: inside a list, saying which list is noise. *@
             <a class="item-card__list" href="/lists/@list.Id">@list.Name</a>
         }
 
         @if (Item.Price is { } amount)
         {
-            <p class="price">@($"{amount:N2} {Item.Currency}")</p>
+            <p class="price @(Item.PriceIsEstimate ? "faint" : null)">
+                @(Item.PriceIsEstimate ? $"≈ {amount:N2} {Item.Currency}" : $"{amount:N2} {Item.Currency}")
+            </p>
+
+            @if (Item.PriceIsEstimate)
+            {
+                <p class="label price__kind">Estimated price</p>
+            }
+            else if (Item.LatestPrice is { } latest && latest != amount)
+            {
+                <p class="price__now">@($"Now {latest:N2} {Item.Currency}")</p>
+            }
         }
         else
         {
-            @* Unrecovered values render faint, so an absent price never reads as free. *@
             <p class="price faint">—</p>
+        }
+
+        @if (checkMessage is { } said)
+        {
+            <p class="price__said">@said</p>
         }
 
         @if (Item.Note is { } note)
@@ -45,22 +57,18 @@
 
             @if (IsClosed)
             {
-                @* Frozen at the decision, and a record of how long it took to reach it. *@
                 <span class="tally__label">@($"days · {(Item.Status == ItemStatus.Bought ? "bought" : "let go")}")</span>
             }
             else
             {
                 <span class="tally__label">@(Ready ? "Ready" : "days waited")</span>
 
-                @* Elapsed against the wait. No label — the count above already says it. *@
                 <div class="wait-rule">
                     <div class="wait-rule__fill" style="width: @Elapsed()%"></div>
                 </div>
 
                 @if (!Ready)
                 {
-                    @* Dropped once ready: the date is in the past, and the count says how
-                       long ago it passed. *@
                     <p class="tally__date">Ready @ReadyOn()</p>
                 }
             }
@@ -77,42 +85,75 @@
             <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Bought)">Bought</button>
             <button type="button" class="quiet" @onclick="() => Set(ItemStatus.LetGo)">Let go</button>
         }
+
+        @if (CanRecheck)
+        {
+            <button type="button" class="quiet" disabled="@checking" @onclick="Recheck">
+                @(checking ? "Reading" : "Re-check price")
+            </button>
+        }
     </div>
 </article>
 
 @code {
+    private RenderFragment Thumbnail => @<text>
+        @if (Item.ImageUrl is { } source)
+        {
+            <img src="@ProductImage.AtWidth(source, ProductImage.CardWidth)" alt="" loading="lazy" />
+        }
+        else
+        {
+            <div class="item-card__noimage"></div>
+        }
+    </text>;
+
     [Parameter, EditorRequired]
     public Item Item { get; set; } = null!;
 
-    /// <summary>
-    /// Passed down rather than read from an injected TimeProvider, so every card in a render
-    /// agrees on the moment — otherwise two cards could disagree about which is ready.
-    /// </summary>
     [Parameter, EditorRequired]
     public DateTimeOffset Now { get; set; }
 
-    /// <summary>Names the list this item sits in. Wanted on /items, redundant inside a list.</summary>
     [Parameter]
     public bool ShowList { get; set; }
 
     [Parameter]
     public EventCallback<(int Id, ItemStatus Status)> OnStatusChange { get; set; }
 
+    [Parameter]
+    public Func<int, Task<PriceCheckResult>>? OnRecheck { get; set; }
+
+    private bool checking;
+    private string? checkMessage;
+
+    private bool CanRecheck =>
+        OnRecheck is not null
+        && Item.Url is not null
+        && Item.Price is not null
+        && !Item.PriceIsEstimate;
+
+    private async Task Recheck()
+    {
+        checking = true;
+        checkMessage = null;
+
+        try
+        {
+            checkMessage = (await OnRecheck!(Item.Id)).Message;
+        }
+        finally
+        {
+            checking = false;
+        }
+    }
+
     private bool IsClosed => Item.Status != ItemStatus.Waiting;
 
     private bool Ready => Item.IsReady(Now);
 
-    /// <summary>
-    /// Days waited, and for a closed item days held: counting stops at the decision rather
-    /// than climbing forever after you already bought the thing. Reuses the arithmetic on
-    /// Item rather than repeating it.
-    /// </summary>
     private int Days => Item.DaysWaited(Item.ClosedAt ?? Now);
 
     private string? TallyModifier() => IsClosed ? "tally--closed" : Ready ? "tally--ready" : null;
 
-    /// <summary>How much of the wait has passed, capped at full. A wait of zero days cannot
-    /// happen — the validator floors it at one — but dividing by it would be fatal.</summary>
     private int Elapsed() =>
         Item.WaitDays <= 0 ? 100 : Math.Clamp(Days * 100 / Item.WaitDays, 0, 100);
 
@@ -121,6 +162,5 @@
     private string Facets() =>
         Item.Brand is { } brand ? $"{brand} · {Item.Category}" : Item.Category.ToString();
 
-    // Stored UTC, formatted local — otherwise the date prints a day early near midnight.
     private string ReadyOn() => Item.ReadyAt.ToLocalTime().ToString("d MMM yyyy");
 }
