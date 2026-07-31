@@ -69,7 +69,9 @@ public class ItemSearchTests
         WaitDays = 30,
         SavedAt = DateTimeOffset.UnixEpoch,
         Status = ItemStatus.Waiting,
-        WishList = listName is null ? null! : new WishList { Name = listName },
+        // Any owner will do — Matches only ever reads the name. The property is required
+        // so that a list cannot reach the database without one, not because this test cares.
+        WishList = listName is null ? null! : new WishList { Name = listName, OwnerId = "test" },
     };
 
     [Fact]

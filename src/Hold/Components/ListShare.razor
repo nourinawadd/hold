@@ -1,0 +1,98 @@
+@* Sharing controls for one list. Owns its own token state; the parent owns the list. *@
+
+@inject ListService ListService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="share">
+    <span class="label">Share</span>
+
+    @if (token is null)
+    {
+        <p class="share__state">This list is private.</p>
+
+        <button type="button" class="quiet" @onclick="Create" disabled="@busy">Create a link</button>
+    }
+    else
+    {
+        @* Readonly rather than disabled: a disabled input cannot be selected, and selecting
+           the text by hand is the fallback whenever the clipboard is refused. *@
+        <input class="share__url" type="text" readonly value="@Url()" @onfocus="SelectAll" @ref="field" />
+
+        <div class="share__actions">
+            <button type="button" class="quiet" @onclick="Copy">@(copied ? "Copied" : "Copy")</button>
+            <button type="button" class="quiet" @onclick="Revoke" disabled="@busy">Stop sharing</button>
+        </div>
+
+        <p class="share__state">
+            Anyone with this link can see the items and how long you've waited. Not your budget.
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public int ListId { get; set; }
+
+    private string? token;
+    private bool busy;
+    private bool copied;
+    private ElementReference field;
+
+    protected override async Task OnParametersSetAsync() =>
+        token = await ListService.GetShareTokenAsync(ListId);
+
+    private string Url() => $"{Navigation.BaseUri.TrimEnd('/')}/s/{token}";
+
+    private async Task Create()
+    {
+        busy = true;
+
+        try
+        {
+            token = await ListService.ShareAsync(ListId);
+            copied = false;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Revoke()
+    {
+        busy = true;
+
+        try
+        {
+            await ListService.UnshareAsync(ListId);
+            token = null;
+            copied = false;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>
+    /// The clipboard API refuses outside a secure context and can be denied by the browser,
+    /// and neither is worth an error state — the URL is on screen and selectable either way,
+    /// so a refusal just leaves the button saying Copy.
+    /// </summary>
+    private async Task Copy()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Url());
+            copied = true;
+        }
+        catch (JSException)
+        {
+            copied = false;
+            await field.FocusAsync();
+        }
+    }
+
+    private async Task SelectAll() => await JS.InvokeVoidAsync("document.activeElement.select");
+}

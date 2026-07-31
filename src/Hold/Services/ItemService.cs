@@ -22,7 +22,10 @@ public sealed record ItemDraft(
 /// <summary>What the all-items view is asking for. Both parts are optional.</summary>
 public sealed record ItemFilter(Category? Category = null, string? Search = null);
 
-public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
+public sealed class ItemService(
+    IDbContextFactory<HoldDbContext> factory,
+    TimeProvider time,
+    CurrentUser user)
 {
     // Mirrors the column limits in HoldDbContext.OnModelCreating.
     public const int UrlMaxLength = 2000;
@@ -125,12 +128,17 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        // Scoped to the owner as well as the list. Filtering on WishListId alone was safe when
+        // there was one account; now it would hand somebody another person's items to anyone
+        // who guessed a list id, whatever the page above happened to check first.
+        var owner = await user.RequireIdAsync();
+
         // No OrderBy in the query. The sort key is readiness, which is computed from SavedAt and
         // WaitDays at the moment of the query rather than stored, so it is not a column any
         // database could order by. Materialise first, then sort below.
         var items = await db.Items
             .AsNoTracking()
-            .Where(item => item.WishListId == listId)
+            .Where(item => item.WishListId == listId && item.WishList.OwnerId == owner)
             .ToListAsync(cancellationToken);
 
         // Readiness is computed, never stored, so the ordering depends on the moment the
@@ -148,10 +156,12 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        var owner = await user.RequireIdAsync();
+
         var items = await db.Items
             .AsNoTracking()
             .Include(item => item.WishList)
-            .Where(item => item.WishList.OwnerId == WishList.DefaultOwnerId)
+            .Where(item => item.WishList.OwnerId == owner)
             .ToListAsync(cancellationToken);
 
         // Filtering in memory, which the sort already requires. It is also the only way to keep
@@ -215,8 +225,10 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
 
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        var owner = await user.RequireIdAsync();
+
         var list = await db.WishLists.SingleOrDefaultAsync(
-            row => row.Id == listId && row.OwnerId == WishList.DefaultOwnerId,
+            row => row.Id == listId && row.OwnerId == owner,
             cancellationToken);
 
         if (list is null)
@@ -260,9 +272,16 @@ public sealed class ItemService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        // The owner check belongs in the query, not after it. Fetching by id alone and then
+        // comparing would still have loaded a stranger's row into memory, and a later edit
+        // could easily forget the comparison; an unmatched owner simply finds nothing here.
+        var owner = await user.RequireIdAsync();
+
         var item = await db.Items
             .Include(entity => entity.WishList)
-            .SingleOrDefaultAsync(entity => entity.Id == itemId, cancellationToken);
+            .SingleOrDefaultAsync(
+                entity => entity.Id == itemId && entity.WishList.OwnerId == owner,
+                cancellationToken);
 
         if (item is null)
         {

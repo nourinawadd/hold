@@ -61,8 +61,10 @@
 
                 <div class="field">
                     <label class="label" for="item-currency">Currency</label>
-                    <input id="item-currency" class="@Faint(ProductField.Currency)" maxlength="3"
-                           @bind="Currency" @bind:event="oninput" autocomplete="off" />
+                    @* A scraped code outside the four is kept as an option by Currencies.Including,
+                       so opening this panel cannot silently rewrite what the shop quoted. *@
+                    <CurrencySelect Id="item-currency" Class="@Faint(ProductField.Currency)"
+                                    Value="Currency" ValueChanged="c => Currency = c" />
                 </div>
 
                 <div class="field field--wide">

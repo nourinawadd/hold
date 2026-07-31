@@ -3,10 +3,28 @@
 <header class="topbar">
     <a class="wordmark" href="">Hold</a>
 
-    <nav class="topnav">
-        <NavLink class="topnav__link" href="lists" Match="NavLinkMatch.All">Lists</NavLink>
-        <NavLink class="topnav__link" href="items">All items</NavLink>
-    </nav>
+    @* Navigation and the account block are both hidden when signed out, so the sign-in page
+       and a shared link show the wordmark alone rather than links that lead to a redirect. *@
+    <AuthorizeView>
+        <Authorized>
+            <nav class="topnav">
+                <NavLink class="topnav__link" href="lists" Match="NavLinkMatch.All">Lists</NavLink>
+                <NavLink class="topnav__link" href="items">All items</NavLink>
+                <NavLink class="topnav__link" href="settings">Settings</NavLink>
+            </nav>
+
+            <div class="account">
+                <span class="account__who">@Who(context)</span>
+
+                @* A form post, not a button with an @onclick. Clearing the cookie means
+                   writing a response header, which an interactive circuit cannot do. *@
+                <form class="account__out" method="post" action="/account/logout">
+                    <AntiforgeryToken />
+                    <button type="submit" class="quiet">Sign out</button>
+                </form>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 </header>
 
 <main class="content">
@@ -41,6 +59,13 @@
 
 @code {
     private ErrorBoundary? boundary;
+
+    // Email rather than display name: with open signup two people can share a first name,
+    // and the address is the thing that says which account you are actually in.
+    private static string Who(AuthenticationState state) =>
+        state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+        ?? state.User.Identity?.Name
+        ?? "Signed in";
 
     // Without this the boundary stays latched and the message never goes away, even after
     // navigating somewhere that works.

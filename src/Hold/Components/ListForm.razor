@@ -24,8 +24,8 @@
 
         <div class="field">
             <label class="label" for="list-currency">Currency</label>
-            <input id="list-currency" maxlength="3"
-                   @bind="budgetCurrency" @bind:event="oninput" autocomplete="off" />
+            <CurrencySelect Id="list-currency" AllowEmpty="true"
+                            Value="budgetCurrency" ValueChanged="c => budgetCurrency = c" />
         </div>
     </div>
 

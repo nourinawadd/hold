@@ -1,5 +1,7 @@
 ﻿@using System.Net.Http
 @using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
@@ -11,3 +13,8 @@
 @using Hold.Data
 @using Hold.Scraping
 @using Hold.Services
+
+@* Private by default. Every component in this tree requires a signed-in account unless it
+   says otherwise, so a page added later is protected by omission rather than by remembering.
+   The two exceptions carry [AllowAnonymous]: SignIn and SharedList. *@
+@attribute [Authorize]

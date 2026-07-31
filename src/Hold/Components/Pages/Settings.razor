@@ -1,0 +1,98 @@
+@page "/settings"
+@inject SettingsService SettingsService
+@inject TimeProvider Time
+
+<PageTitle>Settings — Hold</PageTitle>
+
+<div class="page-head">
+    <h1>Settings</h1>
+</div>
+
+@if (!loaded)
+{
+    <p class="meta">Loading</p>
+}
+else
+{
+    <form class="settings" @onsubmit="Save" @onsubmit:preventDefault>
+        <div class="field">
+            <label class="label" for="wait-days">Default wait</label>
+
+            <input id="wait-days" type="number" min="@ItemService.MinWaitDays" max="@ItemService.MaxWaitDays"
+                   @bind="waitDays" @bind:event="oninput" autocomplete="off" />
+
+            @* The same move the add panel makes: an abstract number is easy to set carelessly,
+               a date is a commitment. Shown here so the default is chosen with its meaning
+               visible rather than discovered later on an item. *@
+            <p class="settings__consequence">
+                Something saved today would be ready on @ReadyOn().
+            </p>
+        </div>
+
+        <div class="field">
+            <label class="label" for="preferred-currency">Preferred currency</label>
+
+            <CurrencySelect Id="preferred-currency"
+                            Value="currency" ValueChanged="c => currency = c ?? Currencies.Default" />
+
+            <p class="settings__consequence">
+                Used for new budgets, and assumed when a shop does not say.
+            </p>
+        </div>
+
+        @if (problem is not null)
+        {
+            @* Ink, not red. Red means an elapsed wait and nothing else. *@
+            <p class="settings__problem">@problem</p>
+        }
+
+        <div class="settings__actions">
+            <button type="submit">Save</button>
+
+            @if (saved)
+            {
+                <span class="meta">Saved</span>
+            }
+        </div>
+    </form>
+}
+
+@code {
+    private int waitDays = 30;
+    private string currency = Currencies.Default;
+    private bool loaded;
+    private bool saved;
+    private string? problem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await SettingsService.GetAsync();
+
+        waitDays = settings.DefaultWaitDays;
+        currency = settings.PreferredCurrency;
+        loaded = true;
+    }
+
+    private string ReadyOn() =>
+        Time.GetUtcNow().ToLocalTime().AddDays(Math.Clamp(waitDays, ItemService.MinWaitDays, ItemService.MaxWaitDays))
+            .ToString("d MMM yyyy");
+
+    private async Task Save()
+    {
+        saved = false;
+
+        // Bounded by the same constants the item form uses, so a wait set here cannot be one
+        // the add panel would refuse.
+        if (waitDays < ItemService.MinWaitDays || waitDays > ItemService.MaxWaitDays)
+        {
+            problem = $"A wait is between {ItemService.MinWaitDays} and {ItemService.MaxWaitDays} days.";
+            return;
+        }
+
+        problem = null;
+
+        await SettingsService.SaveAsync(waitDays, currency);
+
+        saved = true;
+    }
+}

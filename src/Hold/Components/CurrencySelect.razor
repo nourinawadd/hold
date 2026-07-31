@@ -1,0 +1,45 @@
+@* A currency chosen from a list rather than typed. Used everywhere a currency is set, so the
+   four codes are defined once in Services/Currencies.cs. *@
+
+<select id="@Id" class="@Class" value="@Value" @onchange="Changed">
+    @if (AllowEmpty)
+    {
+        @* A budget is optional, and choosing no currency is how you say there isn't one. *@
+        <option value="">--</option>
+    }
+
+    @* The code alone. The field is sized for three characters, so a name beside it is cut off
+       mid-word rather than read — and the codes are the labels people already use.
+
+       Not deconstructed into a variable called `code`: @code is a Razor directive, and the
+       name collides with it inside markup. *@
+    @foreach (var option in Currencies.Including(Value))
+    {
+        <option value="@option" selected="@(string.Equals(option, Value, StringComparison.OrdinalIgnoreCase))">@option</option>
+    }
+</select>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    /// <summary>Lets the add panel mark a scraped-but-unverified value in --faint.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool AllowEmpty { get; set; }
+
+    private Task Changed(ChangeEventArgs args)
+    {
+        var chosen = args.Value as string;
+
+        return ValueChanged.InvokeAsync(string.IsNullOrEmpty(chosen) ? null : chosen);
+    }
+}

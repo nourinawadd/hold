@@ -3,10 +3,11 @@ namespace Hold.Data;
 public class WishList
 {
     /// <summary>
-    /// There is no auth in v1. Every list is owned by this constant so that adding
-    /// accounts later is a change of one expression rather than a rewrite of every query.
+    /// What <see cref="OwnerId"/> held before accounts existed. Nothing writes it any more —
+    /// it survives only so the first sign-in can find the rows made when the app had one user
+    /// and adopt them. Once claimed, no row carries this value again.
     /// </summary>
-    public const string DefaultOwnerId = "me";
+    public const string UnclaimedOwnerId = "me";
 
     public int Id { get; set; }
 
@@ -26,7 +27,18 @@ public class WishList
 
     public DateTimeOffset UpdatedAt { get; set; }
 
-    public string OwnerId { get; set; } = DefaultOwnerId;
+    /// <summary>
+    /// The <see cref="User.Id"/> this list belongs to. No default: a list created without an
+    /// owner is a bug that should fail loudly rather than quietly become somebody else's.
+    /// </summary>
+    public required string OwnerId { get; set; }
+
+    /// <summary>
+    /// Null unless the list has been shared. When set, anyone holding the token can read the
+    /// list at <c>/s/{token}</c> without an account. Clearing it revokes every link already
+    /// handed out, which is the only revocation mechanism there is.
+    /// </summary>
+    public string? ShareToken { get; set; }
 
     public List<Item> Items { get; set; } = [];
 }

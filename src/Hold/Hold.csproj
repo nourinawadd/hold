@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>90fa070f-8470-4156-876f-cf447796ba08</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +14,12 @@
          when a shop publishes no structured data, the page text is read by a model. Inert
          and unregistered unless an API key is configured. -->
     <PackageReference Include="Anthropic" Version="12.39.0" />
+
+    <!-- Not in the CLAUDE.md package list. Added with accounts: this is the framework's own
+         OAuth handler for Google. The alternative is hand-writing an OAuth 2.0 client, which
+         is more code and more risk than the dependency. Identity is still not scaffolded —
+         see Data/User.cs. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.0" />
 
     <!-- CLAUDE.md specifies SQLite. Postgres instead, agreed deliberately: a SQLite database is
          a file beside the app, and no free host offers a filesystem that survives a redeploy. -->

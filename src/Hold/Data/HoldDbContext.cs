@@ -10,6 +10,8 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
 
     public DbSet<Settings> Settings => Set<Settings>();
 
+    public DbSet<User> Users => Set<User>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         // Registered as a convention so it covers DateTimeOffset and DateTimeOffset? alike,
@@ -29,6 +31,15 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
             list.Property(wishList => wishList.OwnerId).HasMaxLength(64).IsRequired();
 
             list.HasIndex(wishList => wishList.OwnerId);
+
+            // Unique, and filtered so it applies only to shared lists. Without the filter every
+            // unshared row would collide on NULL in a provider that treats nulls as equal, and
+            // the index would be uselessly large besides — most lists are never shared.
+            list.Property(wishList => wishList.ShareToken).HasMaxLength(64);
+
+            list.HasIndex(wishList => wishList.ShareToken)
+                .IsUnique()
+                .HasFilter("\"ShareToken\" IS NOT NULL");
 
             list.HasMany(wishList => wishList.Items)
                 .WithOne(item => item.WishList)
@@ -63,21 +74,29 @@ public class HoldDbContext(DbContextOptions<HoldDbContext> options) : DbContext(
 
         modelBuilder.Entity<Settings>(settings =>
         {
-            settings.HasKey(entity => entity.Id);
-            settings.Property(entity => entity.Id).ValueGeneratedNever();
+            // The owner is the key. One row per account is now a property of the schema, which
+            // is what the old CK_Settings_SingleRow check constraint was doing when there was
+            // only ever one account. That constraint is dropped in the Accounts migration.
+            settings.HasKey(entity => entity.OwnerId);
+            settings.Property(entity => entity.OwnerId).HasMaxLength(64).ValueGeneratedNever();
 
             // Database-side defaults so a row inserted by hand still gets the spec values.
             // Note this makes 0 unreachable for DefaultWaitDays, which is not a meaningful
             // wait anyway.
             settings.Property(entity => entity.DefaultWaitDays).HasDefaultValue(30);
             settings.Property(entity => entity.PreferredCurrency).HasMaxLength(3).HasDefaultValue("USD");
+        });
 
-            // The single-row guarantee, enforced by the database rather than by the app.
-            // Id is quoted deliberately: Postgres folds an unquoted identifier to lower case,
-            // and EF creates the column as "Id", so a bare Id = 1 refers to a column that does
-            // not exist and the migration fails.
-            settings.ToTable(table =>
-                table.HasCheckConstraint("CK_Settings_SingleRow", "\"Id\" = 1"));
+        modelBuilder.Entity<User>(user =>
+        {
+            user.Property(entity => entity.Id).HasMaxLength(64).ValueGeneratedNever();
+            user.Property(entity => entity.GoogleSubject).HasMaxLength(128).IsRequired();
+            user.Property(entity => entity.Email).HasMaxLength(320).IsRequired();
+            user.Property(entity => entity.DisplayName).HasMaxLength(120);
+
+            // The lookup every sign-in performs, and the guarantee that one Google account
+            // cannot become two rows if two logins race.
+            user.HasIndex(entity => entity.GoogleSubject).IsUnique();
         });
     }
 }

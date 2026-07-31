@@ -17,9 +17,11 @@ public static class DevDataSeeder
     {
         var pending = false;
 
+        // Seeded as unclaimed rather than against an invented account, so that signing in
+        // locally exercises the same adoption path production will take exactly once.
         if (!await db.Settings.AnyAsync(cancellationToken))
         {
-            db.Settings.Add(new Settings { Id = Settings.SingletonId });
+            db.Settings.Add(new Settings { OwnerId = WishList.UnclaimedOwnerId });
             pending = true;
         }
 
@@ -39,6 +41,7 @@ public static class DevDataSeeder
     {
         yield return new WishList
         {
+            OwnerId = WishList.UnclaimedOwnerId,
             Name = "Wishlist",
             Description = "The long game.",
             BudgetAmount = 1500.00m,
@@ -79,6 +82,7 @@ public static class DevDataSeeder
 
         yield return new WishList
         {
+            OwnerId = WishList.UnclaimedOwnerId,
             Name = "Gifts",
             CreatedAt = now.AddDays(-20),
             UpdatedAt = now.AddDays(-2),
@@ -122,6 +126,7 @@ public static class DevDataSeeder
         // Deliberately empty: the Lists card renders five dashed slots for this one.
         yield return new WishList
         {
+            OwnerId = WishList.UnclaimedOwnerId,
             Name = "Travel",
             CreatedAt = now.AddDays(-30),
             UpdatedAt = now.AddDays(-11),

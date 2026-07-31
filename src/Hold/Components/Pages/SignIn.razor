@@ -1,0 +1,50 @@
+@page "/sign-in"
+@attribute [AllowAnonymous]
+@layout Layout.MainLayout
+@inject SignInAvailability Availability
+
+<PageTitle>Sign in — Hold</PageTitle>
+
+@* An anchor, never a button. Signing in issues an HTTP challenge that redirects to Google,
+   and a Blazor Server circuit cannot write response headers — an @onclick here would do
+   nothing at all. The same constraint shapes sign-out, which is a form post. *@
+
+<div class="signin">
+    <h1>Hold</h1>
+
+    <p class="signin__line">
+        A wishlist that tracks how long you've wanted something.
+    </p>
+
+    @if (Availability.GoogleConfigured)
+    {
+        <a class="signin__go" href="@LoginHref()">Continue with Google</a>
+
+        <p class="signin__foot">
+            Signing in creates an account the first time. Your lists are private to it.
+        </p>
+    }
+    else
+    {
+        @* Ink and mute, like every other thing that goes wrong here. Naming the missing
+           setting because the only person who sees this is the one who can fix it. *@
+        <p class="signin__foot">
+            Sign-in is not configured on this deployment.
+            Set <code>Authentication:Google:ClientId</code> and <code>ClientSecret</code>.
+        </p>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Where to land after Google returns. Supplied by RedirectToSignIn when someone asked
+    /// for a page before signing in; the endpoint rejects anything that is not a local path.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private string LoginHref() =>
+        string.IsNullOrWhiteSpace(ReturnUrl)
+            ? "/account/login"
+            : $"/account/login?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+}

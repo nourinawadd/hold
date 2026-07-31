@@ -1,7 +1,15 @@
+using System.Security.Cryptography;
 using Hold.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hold.Services;
+
+/// <summary>
+/// A list as someone without an account sees it. Deliberately not <see cref="ListDetail"/>:
+/// that record carries the budget, and a shared link must not. Leaving the fields out of the
+/// type means a future edit to the shared page cannot accidentally render them.
+/// </summary>
+public sealed record SharedList(string Name, IReadOnlyList<Item> Items);
 
 /// <summary>A total in one currency. Amounts are never converted between currencies.</summary>
 public sealed record CurrencyTotal(string Currency, decimal Amount);
@@ -24,7 +32,10 @@ public sealed record ListDetail(
     int ItemCount,
     IReadOnlyList<CurrencyTotal> Totals);
 
-public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimeProvider time)
+public sealed class ListService(
+    IDbContextFactory<HoldDbContext> factory,
+    TimeProvider time,
+    CurrentUser user)
 {
     // Mirrors the column limits in HoldDbContext.OnModelCreating, so an over-long value is
     // refused with a sentence the user can act on. Postgres would otherwise reject the insert
@@ -108,6 +119,8 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     public async Task<IReadOnlyList<ListSummary>> GetSummariesAsync(
         CancellationToken cancellationToken = default)
     {
+        var owner = await user.RequireIdAsync();
+
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
         // No OrderBy here. Postgres could do it — it orders timestamptz natively, unlike SQLite,
@@ -116,7 +129,7 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
         // one place.
         var rows = await db.WishLists
             .AsNoTracking()
-            .Where(list => list.OwnerId == WishList.DefaultOwnerId)
+            .Where(list => list.OwnerId == owner)
             .Select(list => new
             {
                 list.Id,
@@ -153,13 +166,15 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
         int id,
         CancellationToken cancellationToken = default)
     {
+        var owner = await user.RequireIdAsync();
+
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
         // Only what the header needs. The items themselves come from ItemService, which
         // owns their ordering.
         var row = await db.WishLists
             .AsNoTracking()
-            .Where(list => list.Id == id && list.OwnerId == WishList.DefaultOwnerId)
+            .Where(list => list.Id == id && list.OwnerId == owner)
             .Select(list => new
             {
                 list.Id,
@@ -202,6 +217,7 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
 
         var list = new WishList
         {
+            OwnerId = await user.RequireIdAsync(),
             Name = draft.Name.Trim(),
             Description = Clean(draft.Description),
             BudgetAmount = amount,
@@ -227,8 +243,10 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
 
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        var owner = await user.RequireIdAsync();
+
         var list = await db.WishLists.SingleOrDefaultAsync(
-            row => row.Id == id && row.OwnerId == WishList.DefaultOwnerId,
+            row => row.Id == id && row.OwnerId == owner,
             cancellationToken);
 
         if (list is null)
@@ -256,8 +274,10 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
 
+        var owner = await user.RequireIdAsync();
+
         var list = await db.WishLists.SingleOrDefaultAsync(
-            row => row.Id == id && row.OwnerId == WishList.DefaultOwnerId,
+            row => row.Id == id && row.OwnerId == owner,
             cancellationToken);
 
         if (list is null)
@@ -271,6 +291,112 @@ public sealed class ListService(IDbContextFactory<HoldDbContext> factory, TimePr
 
         return true;
     }
+
+    /// <summary>The current share token, or null when the list has never been shared.</summary>
+    public async Task<string?> GetShareTokenAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        var owner = await user.RequireIdAsync();
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        return await db.WishLists
+            .AsNoTracking()
+            .Where(list => list.Id == id && list.OwnerId == owner)
+            .Select(list => list.ShareToken)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns the existing token rather than minting a new one, so opening the share control
+    /// twice does not quietly invalidate a link already sent to somebody.
+    /// </summary>
+    public async Task<string?> ShareAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var owner = await user.RequireIdAsync();
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var list = await db.WishLists.SingleOrDefaultAsync(
+            row => row.Id == id && row.OwnerId == owner,
+            cancellationToken);
+
+        if (list is null)
+        {
+            return null;
+        }
+
+        if (list.ShareToken is null)
+        {
+            list.ShareToken = NewShareToken();
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return list.ShareToken;
+    }
+
+    /// <summary>
+    /// Clears the token. Every link handed out so far stops working, which is the whole of
+    /// revocation — there is no per-recipient access to withdraw.
+    /// </summary>
+    public async Task<bool> UnshareAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var owner = await user.RequireIdAsync();
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var list = await db.WishLists.SingleOrDefaultAsync(
+            row => row.Id == id && row.OwnerId == owner,
+            cancellationToken);
+
+        if (list is null)
+        {
+            return false;
+        }
+
+        list.ShareToken = null;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>
+    /// The one query in this file with no owner scoping, because the caller has no account.
+    /// Holding the token is the authorisation. Returns the items in the same order the owner
+    /// sees, and nothing else about the list or the person who made it.
+    /// </summary>
+    public async Task<SharedList?> GetSharedAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var list = await db.WishLists
+            .AsNoTracking()
+            .Include(row => row.Items)
+            .SingleOrDefaultAsync(row => row.ShareToken == token, cancellationToken);
+
+        return list is null
+            ? null
+            : new SharedList(list.Name, ItemService.Sort(list.Items, time.GetUtcNow()));
+    }
+
+    /// <summary>
+    /// 128 bits from the cryptographic generator, base64url so it survives a URL untouched.
+    /// Not Guid and not Random: this value is the only thing standing between a link and the
+    /// contents of somebody's list, so it has to be unguessable rather than merely unique.
+    /// </summary>
+    private static string NewShareToken() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(16))
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
 
     private static void Guard(ListDraft draft)
     {

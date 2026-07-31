@@ -2,6 +2,10 @@ using Hold.Components;
 using Hold.Data;
 using Hold.Scraping;
 using Hold.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +33,84 @@ builder.Services.AddDbContextFactory<HoldDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(5),
             errorCodesToAdd: null)));
 
+// Registered only when a key is actually configured, the same way the Claude extractor is.
+// The Google handler validates its options on every request — not at startup — so wiring it
+// up with an empty ClientId takes the whole site down with a 500, /health included. Absent
+// credentials the app still runs: shared links work, the database is reachable, and only
+// signing in is unavailable, which is a far better failure than an outage.
+var google = builder.Configuration["Authentication:Google:ClientId"];
+var googleReady = !string.IsNullOrWhiteSpace(google);
+
+builder.Services.AddSingleton(new SignInAvailability(googleReady));
+
+if (!googleReady)
+{
+    // Loud, because an app nobody can sign in to looks identical to a broken one.
+    Console.WriteLine(
+        "WARNING: Authentication:Google:ClientId is not configured. Sign-in is unavailable.");
+}
+
+// Cookie holds the session; Google is only reached when something issues a challenge. Both
+// schemes are named explicitly rather than left to defaults, because the two roles differ:
+// one proves who you are once, the other carries it on every request afterwards.
+var authentication = builder.Services
+    .AddAuthentication(options =>
+    {
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+
+        // Cookie, not Google — deliberately. An unauthenticated request to an [Authorize]
+        // component issues a real HTTP challenge during static rendering, and challenging
+        // Google there would throw the visitor at an account chooser before they had seen
+        // this app at all. Pointing the default at the cookie handler sends them to its
+        // LoginPath instead, which is our own sign-in page; only /account/login names the
+        // Google scheme, and only after somebody has chosen to sign in.
+        //
+        // It also means a deployment with no Google credentials degrades to a page that
+        // explains itself rather than to a scheme that does not exist.
+        options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    })
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/sign-in";
+        options.AccessDeniedPath = "/sign-in";
+
+        // Spelled to match the [SupplyParameterFromQuery] on SignIn.razor. The handler's
+        // default is "ReturnUrl", and relying on the two agreeing by case is the kind of
+        // thing that silently drops people on the lists index instead of where they asked for.
+        options.ReturnUrlParameter = "returnUrl";
+
+        // Long enough that a wishlist does not ask you to sign in every visit, sliding so that
+        // regular use never interrupts itself.
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+        options.SlidingExpiration = true;
+
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    });
+
+if (googleReady)
+{
+    authentication.AddGoogle(options =>
+    {
+        // Same configuration shape as Anthropic:ApiKey below. As environment variables these
+        // are AUTHENTICATION__GOOGLE__CLIENTID and __CLIENTSECRET — double underscores, which
+        // is the spelling this repo has been bitten by before.
+        options.ClientId = google!;
+        options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? string.Empty;
+
+        // The account row is created here, before the cookie is written.
+        options.Events.OnTicketReceived = GoogleSignIn.OnTicketReceivedAsync;
+    });
+}
+
+builder.Services.AddAuthorization();
+
+// Makes the authentication state available to components as a cascading value, which is what
+// [Authorize] and AuthorizeRouteView read.
+builder.Services.AddCascadingAuthenticationState();
+
+builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ListService>();
 builder.Services.AddScoped<ItemService>();
 builder.Services.AddScoped<SettingsService>();
@@ -80,6 +162,26 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
 }
 
+// Must come before anything that builds an absolute URL, which in practice means before
+// authentication. The container is served plain HTTP behind a proxy that terminates TLS, so
+// without this the app believes it is running on http:// and hands Google a redirect_uri of
+// http://hold.nourin.me/signin-google — which Google refuses outright, since it allows plain
+// HTTP only for localhost. The symptom is redirect_uri_mismatch and nothing in the app's own
+// logs, because the request never gets that far.
+//
+// The Known* collections are cleared deliberately: they default to loopback only, and the
+// proxy here is Azure's ingress at an address that is neither fixed nor knowable. Safe because
+// nothing but that ingress can reach the container.
+var forwarded = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+};
+
+forwarded.KnownIPNetworks.Clear();
+forwarded.KnownProxies.Clear();
+
+app.UseForwardedHeaders(forwarded);
+
 if (!app.Environment.IsDevelopment())
 {
     // A plain sentence, written inline rather than routed: an /Error page would be a route to
@@ -115,7 +217,37 @@ if (!string.IsNullOrEmpty(builder.Configuration["ASPNETCORE_HTTPS_PORTS"])
 }
 
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery(); // means every form must carry a secret token that only pages served by my app can contain
+
+// Sign-in and sign-out are HTTP endpoints, not component event handlers, and that is a
+// constraint rather than a preference. An interactive Blazor Server circuit has no usable
+// HttpContext and cannot write response headers, so an @onclick could never issue a redirect
+// to Google or set a cookie. The sign-in page links here; the topbar posts here.
+app.MapGet("/account/login", (string? returnUrl) =>
+    !googleReady
+        ? Results.Text("Sign-in is not configured on this deployment.", "text/plain", statusCode: 503)
+        : Results.Challenge(
+        new AuthenticationProperties
+        {
+            // Local paths only. Echoing an arbitrary returnUrl back into a redirect is how an
+            // open redirect gets built, and this one would carry a freshly signed-in session.
+            RedirectUri = returnUrl is not null && Uri.IsWellFormedUriString(returnUrl, UriKind.Relative)
+                ? returnUrl
+                : "/",
+        },
+        [GoogleDefaults.AuthenticationScheme]));
+
+// POST, so the browser cannot be talked into signing someone out by loading an image, and so
+// antiforgery applies.
+app.MapPost("/account/logout", async (HttpContext http) =>
+{
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+    return Results.Redirect("/sign-in");
+});
 
 // Opens the database rather than just answering. An app that is running but cannot reach its
 // database is not healthy, and with the database now a separate service across a network that

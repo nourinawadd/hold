@@ -1,0 +1,96 @@
+@page "/s/{Token}"
+@attribute [AllowAnonymous]
+@inject ListService ListService
+@inject TimeProvider Time
+
+<PageTitle>@(shared?.Name ?? "Shared list") — Hold</PageTitle>
+
+@if (!loaded)
+{
+    <p class="meta">Loading</p>
+}
+else if (shared is null)
+{
+    @* A revoked or mistyped link. The same plain sentence a deleted list gets — no red, and
+       nothing that hints whether the list ever existed. *@
+    <div class="page-head">
+        <h1>Not here</h1>
+    </div>
+
+    <p class="missing">This link has been turned off, or it is wrong.</p>
+}
+else
+{
+    <div class="page-head">
+        <h1>@shared.Name</h1>
+
+        <div class="page-head__right">
+            <span class="meta">@Count()</span>
+        </div>
+    </div>
+
+    @* No budget bar, no currency totals, no add field, and no way back to any other list.
+       The SharedList record carries only what belongs here, so this page cannot render the
+       rest by accident. *@
+
+    @if (shared.Items.Count == 0)
+    {
+        <p class="nothing">Nothing in this list yet.</p>
+    }
+    else
+    {
+        // Read once per render so every card agrees on which items are ready.
+        var now = Time.GetUtcNow();
+
+        <div class="item-grid">
+            @foreach (var item in Waiting)
+            {
+                @* No OnStatusChange, so ItemCard hides its actions — the same HasDelegate
+                   test ListCard uses. A visitor gets a card that reads and does nothing. *@
+                <ItemCard @key="item.Id" Item="item" Now="now" />
+            }
+        </div>
+
+        @if (Closed.Any())
+        {
+            <div class="closed-rule">
+                <span class="label">Decided</span>
+            </div>
+
+            <div class="item-grid">
+                @foreach (var item in Closed)
+                {
+                    <ItemCard @key="item.Id" Item="item" Now="now" />
+                }
+            </div>
+        }
+    }
+
+    <p class="shared__foot">Shared from Hold</p>
+}
+
+@code {
+    [Parameter]
+    public string Token { get; set; } = string.Empty;
+
+    // Qualified: this page compiles to a class also called SharedList, which would otherwise
+    // shadow the record the service returns. The same trap ListDetail documents.
+    private Hold.Services.SharedList? shared;
+    private bool loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loaded = false;
+        shared = await ListService.GetSharedAsync(Token);
+        loaded = true;
+    }
+
+    // Already sorted by the service, using the same rule as the owner's own view.
+    private IEnumerable<Item> Waiting =>
+        shared!.Items.Where(item => item.Status == ItemStatus.Waiting);
+
+    private IEnumerable<Item> Closed =>
+        shared!.Items.Where(item => item.Status != ItemStatus.Waiting);
+
+    private string Count() => shared!.Items.Count == 1 ? "1 item" : $"{shared!.Items.Count} items";
+}
