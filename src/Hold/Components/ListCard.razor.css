@@ -1,6 +1,3 @@
-/* List card — moved here from Lists.razor.css when the card became its own component,
-   because scoped styles only reach the component they sit beside. */
-
 .list-card {
     display: flex;
     flex-direction: column;
@@ -9,8 +6,6 @@
     background: var(--paper);
     border: 0.5px solid var(--hairline);
 }
-
-/* The card body is one link to the list. */
 
 .list-card__open {
     display: flex;
@@ -23,13 +18,10 @@
     text-decoration: none;
 }
 
-/* Underline the name alone, not every line in the card. */
 .list-card__open:hover h2 {
     text-decoration: underline;
     text-underline-offset: 0.2em;
 }
-
-/* Five-slot thumbnail strip: filled slots are solid, empty slots dashed. */
 
 .thumbs {
     display: grid;
@@ -42,7 +34,6 @@
     border: 0.5px dashed var(--hairline);
 }
 
-/* An item with no picture: solid, so the strip still counts what is in the list. */
 .thumb--filled {
     background: var(--bone);
     border: 0.5px solid var(--hairline);
@@ -59,14 +50,8 @@
     width: 100%;
     height: 100%;
 
-    /* Shop images arrive in every aspect ratio; cropping to the square keeps the strip
-       even rather than letting one tall image set the row height. */
     object-fit: cover;
 }
-
-/* Name on the left, totals on the right — until they stop fitting side by side, at which
-   point the totals take a line of their own. Without the wrap, an unshrinkable total (two
-   currencies, say) squeezed the name column into a four-line strip. */
 
 .list-card__foot {
     display: flex;
@@ -77,8 +62,6 @@
     margin-top: auto;
 }
 
-/* Shrinks to make room, but only down to a readable width. Past that the flex line wraps
-   instead, which is the behaviour worth having. */
 .list-card__naming {
     flex: 1 1 9rem;
     min-width: 0;
@@ -87,7 +70,6 @@
 .list-card__foot h2 {
     margin-bottom: 0.35rem;
 
-    /* A single unbroken word longer than the card must not push out of it. */
     overflow-wrap: anywhere;
 }
 
@@ -100,13 +82,10 @@
     text-align: right;
 }
 
-/* An amount is one token — it must never break across lines. */
 .list-card__totals .meta {
     white-space: nowrap;
 }
 
-/* On its own wrapped line the block spans the card, so the amounts stay right-aligned
-   under the name rather than stranded mid-card. */
 @media (max-width: 22rem) {
     .list-card__totals {
         align-items: flex-start;
@@ -114,12 +93,11 @@
     }
 }
 
-/* Actions, and the confirmation that replaces them in place. */
-
 .list-card__actions {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
     padding-top: 0.75rem;
     border-top: 0.5px solid var(--hairline);
 }
@@ -129,7 +107,6 @@
     border-top: 0.5px solid var(--hairline);
 }
 
-/* Ink, not red. Red means permission and nothing else. */
 .confirm-question {
     margin-bottom: 0.75rem;
     font-size: 0.6875rem;

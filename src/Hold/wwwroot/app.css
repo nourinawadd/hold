@@ -1,13 +1,11 @@
-/* HOLD — design tokens and base styles. */
-
 :root {
-    --bone:       #F2F0EA;  /* page */
-    --paper:      #FAF9F6;  /* cards */
-    --ink:        #16161A;  /* text, rules, buttons */
-    --hairline:   #C9C5BC;  /* dividers */
-    --mute:       #8A867C;  /* labels, metadata */
-    --faint:      #B4B0A6;  /* placeholders, unrecovered values */
-    --permission: #E03127;  /* ready items ONLY */
+    --bone:       #F2F0EA;
+    --paper:      #FAF9F6;
+    --ink:        #16161A;
+    --hairline:   #C9C5BC;
+    --mute:       #8A867C;
+    --faint:      #B4B0A6;
+    --permission: #E03127;
 
     --display: 'Archivo', system-ui, sans-serif;
     --data: 'IBM Plex Mono', ui-monospace, monospace;
@@ -35,8 +33,6 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
-/* Display — wordmark and page headings only. */
-
 h1 {
     margin: 0;
     font-family: var(--display);
@@ -45,9 +41,13 @@ h1 {
     text-transform: uppercase;
     letter-spacing: -0.01em;
     line-height: 1.1;
+
+    overflow-wrap: anywhere;
 }
 
-/* Everything else is data. */
+img {
+    max-width: 100%;
+}
 
 h2,
 h3,
@@ -63,8 +63,6 @@ p {
     margin: 0;
 }
 
-/* Labels and metadata. */
-
 .label,
 .meta {
     font-family: var(--data);
@@ -75,13 +73,9 @@ p {
     color: var(--mute);
 }
 
-/* Recovered but unverified values. */
-
 .faint {
     color: var(--faint);
 }
-
-/* Controls. */
 
 a {
     color: inherit;
@@ -114,9 +108,6 @@ button:hover,
     text-decoration: none;
 }
 
-/* Quiet control — a secondary action that reads as a label until you reach for it.
-   Used for rename, cancel, and anything that should not compete with the primary. */
-
 button.quiet {
     padding: 0.6rem 0;
     color: var(--mute);
@@ -130,9 +121,6 @@ button.quiet:hover {
     text-decoration: underline;
     text-underline-offset: 0.2em;
 }
-
-/* Chip — a suggested value you can take with one click. Sentence case, because these are
-   names to be used verbatim rather than labels. */
 
 .chip {
     padding: 0.35rem 0.7rem;
@@ -151,17 +139,12 @@ button.quiet:hover {
     text-decoration: none;
 }
 
-/* Panel — the add flow's surface. Shared here rather than scoped, because the paste,
-   reading, and editing states live in two different components and must look like one
-   panel changing its contents. */
-
 .add-panel {
     margin-bottom: 2.5rem;
     background: var(--paper);
     border: 0.5px solid var(--hairline);
 }
 
-/* Provenance line: READ FROM SHOPIFY, ENTERED BY HAND, READING SHOP.DOEN.COM. */
 .panel-head {
     padding: 0.75rem 1.5rem;
     font-size: 0.6875rem;
@@ -194,7 +177,13 @@ textarea::placeholder {
     color: var(--faint);
 }
 
-/* Visible keyboard focus. */
+@media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+        font-size: 1rem;
+    }
+}
 
 :focus-visible {
     outline: 2px solid var(--ink);
@@ -204,8 +193,6 @@ textarea::placeholder {
 h1:focus {
     outline: none;
 }
-
-/* Error surface — ink, never red. Red means permission. */
 
 #blazor-error-ui {
     color-scheme: light only;

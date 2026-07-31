@@ -1,5 +1,3 @@
-/* Settings — two fields. The page is deliberately almost empty; there is nothing else here. */
-
 .page-head {
     display: flex;
     align-items: baseline;
@@ -24,7 +22,6 @@
     margin-bottom: 0.5rem;
 }
 
-/* What the setting means, in plain text under the control that sets it. */
 .settings__consequence {
     margin-top: 0.5rem;
     font-size: 0.6875rem;
@@ -44,7 +41,8 @@
 .settings__actions {
     display: flex;
     align-items: baseline;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
     padding-top: 1.25rem;
     border-top: 0.5px solid var(--hairline);
 }

@@ -1,6 +1,3 @@
-/* Create / rename panel. Sits above the grid rather than over it — the design has no
-   overlays. */
-
 .list-form {
     display: flex;
     flex-direction: column;
@@ -21,7 +18,6 @@
     width: 100%;
 }
 
-/* Amount and its currency belong together — one is meaningless without the other. */
 .money {
     display: grid;
     grid-template-columns: 1fr 6rem;
@@ -33,9 +29,6 @@
         grid-template-columns: 1fr;
     }
 }
-
-/* Suggested names — clicking one fills the name field. The .chip control itself lives in
-   app.css, since the empty state on Lists.razor uses it too. */
 
 .suggestions {
     display: flex;
@@ -55,7 +48,8 @@
 .list-form__actions {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
 }
 
 @media (max-width: 640px) {

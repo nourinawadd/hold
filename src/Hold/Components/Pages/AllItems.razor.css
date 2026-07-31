@@ -1,5 +1,3 @@
-/* All items — every item across every list, filtered and searched. */
-
 .page-head {
     display: flex;
     align-items: baseline;
@@ -17,7 +15,6 @@
     gap: 1.5rem;
 }
 
-/* Divides the lists a search matched from the items it matched. */
 .section {
     margin: 2rem 0 1rem;
     padding-top: 0.75rem;
@@ -56,5 +53,11 @@
     .item-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .item-grid {
+        grid-template-columns: 1fr;
     }
 }

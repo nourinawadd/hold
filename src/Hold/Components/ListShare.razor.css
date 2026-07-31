@@ -1,6 +1,3 @@
-/* Share — a quiet block above the budget bar. Deliberately understated: sharing is
-   occasional, and it must not compete with the paste field or the items. */
-
 .share {
     padding-top: 1.25rem;
     margin-top: 3rem;
@@ -19,7 +16,6 @@
     color: var(--mute);
 }
 
-/* Square, hairline, monospace — a field showing a value, not a form control asking for one. */
 .share__url {
     display: block;
     width: 100%;
@@ -35,6 +31,13 @@
 .share__actions {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
     margin-top: 0.75rem;
+}
+
+@media (max-width: 640px) {
+    .share__url {
+        font-size: 1rem;
+    }
 }
