@@ -53,8 +53,23 @@ else
         <div class="item-grid">
             @foreach (var item in items)
             {
-                <ItemCard @key="item.Id" Item="item" Now="now" ShowList
-                          OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
+                @if (editId == item.Id)
+                {
+                    <div class="item-grid__editing">
+                        <AddItemPanel @key="item.Id"
+                                      Header="@($"Editing · {item.Title}")"
+                                      Existing="item"
+                                      SubmitLabel="Save"
+                                      OnSubmit="SaveEdit"
+                                      OnCancel="CancelEdit"
+                                      OnDelete="DeleteEdited" />
+                    </div>
+                }
+                else
+                {
+                    <ItemCard @key="item.Id" Item="item" Now="now" ShowList
+                              OnStatusChange="ChangeStatus" OnRecheck="Recheck" OnEdit="StartEdit" />
+                }
             }
         </div>
     }
@@ -67,6 +82,7 @@ else
     private Category? category;
     private string? search;
     private bool loaded;
+    private int? editId;
 
     private bool Searching => !string.IsNullOrWhiteSpace(search);
 
@@ -95,15 +111,47 @@ else
             System.Globalization.CompareOptions.IgnoreCase
                 | System.Globalization.CompareOptions.IgnoreNonSpace) >= 0;
 
+    // Filtering an open panel out of the results would take the form off the page mid-edit, so both
+    // of these close it first.
     private async Task ChooseCategory(Category? chosen)
     {
         category = chosen;
+        editId = null;
         await Load();
     }
 
     private async Task Typed(string? value)
     {
         search = value;
+        editId = null;
+        await Load();
+    }
+
+    private void StartEdit(int itemId) => editId = itemId;
+
+    private void CancelEdit() => editId = null;
+
+    private async Task SaveEdit(ItemDraft draft)
+    {
+        if (editId is { } itemId)
+        {
+            await ItemService.UpdateAsync(itemId, draft);
+        }
+
+        editId = null;
+
+        await Load();
+    }
+
+    private async Task DeleteEdited()
+    {
+        if (editId is { } itemId)
+        {
+            await ItemService.DeleteAsync(itemId);
+        }
+
+        editId = null;
+
         await Load();
     }
 

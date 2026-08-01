@@ -55,8 +55,8 @@ else
     }
     else
     {
-        <CategoryStrip Selected="category" Available="present" SelectedChanged="c => category = c" />
-        <ItemSearch Value="@search" ValueChanged="s => search = s" />
+        <CategoryStrip Selected="category" Available="present" SelectedChanged="ChooseCategory" />
+        <ItemSearch Value="@search" ValueChanged="Typed" />
     }
 
     @if (items.Count > 0 && Shown.Count == 0)
@@ -70,7 +70,7 @@ else
         <div class="item-grid">
             @foreach (var item in Waiting)
             {
-                <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
+                @Slot(item, now)
             }
         </div>
 
@@ -83,7 +83,7 @@ else
             <div class="item-grid">
                 @foreach (var item in Closed)
                 {
-                    <ItemCard @key="item.Id" Item="item" Now="now" OnStatusChange="ChangeStatus" OnRecheck="Recheck" />
+                    @Slot(item, now)
                 }
             </div>
         }
@@ -95,6 +95,29 @@ else
 }
 
 @code {
+    /// <summary>
+    /// One position in a grid: the card, or the edit panel spanning the full width where it stood.
+    /// </summary>
+    private RenderFragment Slot(Item item, DateTimeOffset now) => @<text>
+        @if (editId == item.Id)
+        {
+            <div class="item-grid__editing">
+                <AddItemPanel @key="item.Id"
+                              Header="@($"Editing · {item.Title}")"
+                              Existing="item"
+                              SubmitLabel="Save"
+                              OnSubmit="SaveEdit"
+                              OnCancel="CancelEdit"
+                              OnDelete="DeleteEdited" />
+            </div>
+        }
+        else
+        {
+            <ItemCard @key="item.Id" Item="item" Now="now"
+                      OnStatusChange="ChangeStatus" OnRecheck="Recheck" OnEdit="StartEdit" />
+        }
+    </text>;
+
     [Parameter]
     public int Id { get; set; }
 
@@ -106,6 +129,7 @@ else
 
     private Category? category;
     private string? search;
+    private int? editId;
 
     private IReadOnlyList<Item> Shown => items
         .Where(item => (category is null || item.Category == category)
@@ -146,6 +170,48 @@ else
         addKey++;
 
         await Load();
+    }
+
+    private void StartEdit(int itemId) => editId = itemId;
+
+    private void CancelEdit() => editId = null;
+
+    private async Task SaveEdit(ItemDraft draft)
+    {
+        if (editId is { } itemId)
+        {
+            await ItemService.UpdateAsync(itemId, draft);
+        }
+
+        editId = null;
+
+        await Load();
+    }
+
+    private async Task DeleteEdited()
+    {
+        if (editId is { } itemId)
+        {
+            await ItemService.DeleteAsync(itemId);
+        }
+
+        editId = null;
+
+        await Load();
+    }
+
+    // Filtering an open panel out of Shown would take the form off the page mid-edit, so both of
+    // these close it first.
+    private void ChooseCategory(Category? chosen)
+    {
+        category = chosen;
+        editId = null;
+    }
+
+    private void Typed(string? value)
+    {
+        search = value;
+        editId = null;
     }
 
     private async Task ChangeStatus((int Id, ItemStatus Status) change)

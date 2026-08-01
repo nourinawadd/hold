@@ -243,6 +243,102 @@ public sealed class ItemService(
         return item.Id;
     }
 
+    /// <summary>
+    /// Whether an edit invalidates a stored re-check. The card renders "Now 45.00 USD" whenever
+    /// <see cref="Item.LatestPrice"/> differs from <see cref="Item.Price"/>, so once the saved price,
+    /// its currency, or the link it was read from changes, that line compares against a number that
+    /// no longer exists.
+    /// </summary>
+    public static bool RetiresLatestPrice(Item item, ItemDraft draft) =>
+        item.Price != draft.Price
+        || !string.Equals(item.Currency, draft.Currency?.Trim(), StringComparison.OrdinalIgnoreCase)
+        || item.Url != Clean(draft.Url);
+
+    public async Task<bool> UpdateAsync(
+        int itemId,
+        ItemDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        var problem = DescribeProblem(draft);
+
+        if (problem is not null)
+        {
+            throw new ArgumentException(problem, nameof(draft));
+        }
+
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var owner = await user.RequireIdAsync();
+
+        var item = await db.Items
+            .Include(entity => entity.WishList)
+            .SingleOrDefaultAsync(
+                entity => entity.Id == itemId && entity.WishList.OwnerId == owner,
+                cancellationToken);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        if (RetiresLatestPrice(item, draft))
+        {
+            item.LatestPrice = null;
+            item.LatestPriceAt = null;
+        }
+
+        item.Url = Clean(draft.Url);
+        item.Title = draft.Title.Trim();
+        item.Brand = Clean(draft.Brand);
+        item.ImageUrl = Clean(draft.ImageUrl);
+        item.Price = draft.Price;
+        item.Currency = draft.Currency.Trim().ToUpperInvariant();
+        item.Category = draft.Category;
+        item.WaitDays = draft.WaitDays;
+        item.Note = Clean(draft.Note);
+
+        // Taken verbatim rather than OR-ed with EstimatedPrice.LikelyEstimate as AddAsync does. On the
+        // add path that inference is a default for a value nobody has seen yet; here the stored flag is
+        // a decision already made, and re-inferring would re-tick an item the user deliberately
+        // un-ticked every time they fixed a typo.
+        item.PriceIsEstimate = draft.PriceIsEstimate;
+
+        // SavedAt, Status and ClosedAt are deliberately untouched. SavedAt is the origin of the day
+        // count, the progress hairline and the sort — correcting a name must not change how long
+        // something has been wanted.
+        item.WishList.UpdatedAt = time.GetUtcNow();
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    public async Task<bool> DeleteAsync(int itemId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var owner = await user.RequireIdAsync();
+
+        var item = await db.Items
+            .Include(entity => entity.WishList)
+            .SingleOrDefaultAsync(
+                entity => entity.Id == itemId && entity.WishList.OwnerId == owner,
+                cancellationToken);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        db.Items.Remove(item);
+
+        item.WishList.UpdatedAt = time.GetUtcNow();
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
     public async Task<bool> SetStatusAsync(
         int itemId,
         ItemStatus status,

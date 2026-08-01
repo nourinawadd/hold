@@ -92,6 +92,11 @@
                 @(checking ? "Reading" : "Re-check price")
             </button>
         }
+
+        @if (OnEdit.HasDelegate)
+        {
+            <button type="button" class="quiet" @onclick="() => OnEdit.InvokeAsync(Item.Id)">Edit</button>
+        }
     </div>
 </article>
 
@@ -121,6 +126,12 @@
 
     [Parameter]
     public Func<int, Task<PriceCheckResult>>? OnRecheck { get; set; }
+
+    /// <summary>
+    /// Left unset on read-only surfaces, which is what keeps the button off the shared list.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnEdit { get; set; }
 
     private bool checking;
     private string? checkMessage;

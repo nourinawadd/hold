@@ -76,6 +76,17 @@
     gap: 1.5rem;
 }
 
+/* The edit panel takes the whole row where its card stood. The row it was in stays short —
+   that gap marks the place, and grid-auto-flow: dense would backfill it at the cost of putting
+   the visual order out of step with the tab order. */
+.item-grid__editing {
+    grid-column: 1 / -1;
+}
+
+.item-grid__editing ::deep .add-panel {
+    margin-bottom: 0;
+}
+
 .closed-rule {
     margin: 3rem 0 1.5rem;
     padding-top: 0.75rem;

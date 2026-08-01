@@ -30,7 +30,7 @@
 
                 <div class="field field--wide">
                     <label class="label" for="item-title">Name</label>
-                    <input id="item-title" class="@Faint(ProductField.Title)" @bind="Title" @bind:event="oninput" autocomplete="off" />
+                    <input id="item-title" @ref="titleInput" class="@Faint(ProductField.Title)" @bind="Title" @bind:event="oninput" autocomplete="off" />
                 </div>
 
                 <div class="field">
@@ -90,7 +90,7 @@
             <p class="wait__date">
                 @if (ReadyOn() is { } readyOn)
                 {
-                    @($"Ready on {readyOn}")
+                    @readyOn
                 }
                 else
                 {
@@ -104,10 +104,29 @@
             <p class="form-error" role="alert">@error</p>
         }
 
-        <div class="add-panel__actions">
-            <button type="submit">Start the hold</button>
-            <button type="button" class="quiet" @onclick="OnCancel">Cancel</button>
-        </div>
+        @if (confirming)
+        {
+            <div class="add-panel__confirm">
+                <p class="confirm-question">@($"Delete {Existing?.Title}?")</p>
+
+                <div class="add-panel__actions">
+                    <button type="button" @ref="confirmButton" @onclick="OnDelete">Delete</button>
+                    <button type="button" class="quiet" @onclick="() => confirming = false">Cancel</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="add-panel__actions">
+                <button type="submit">@SubmitLabel</button>
+                <button type="button" class="quiet" @onclick="OnCancel">Cancel</button>
+
+                @if (OnDelete.HasDelegate)
+                {
+                    <button type="button" class="quiet delete" @onclick="Ask">Delete</button>
+                }
+            </div>
+        }
     </form>
 </div>
 
@@ -124,11 +143,24 @@
     [Parameter]
     public string? InitialUrl { get; set; }
 
+    /// <summary>
+    /// A saved item to edit. When set, every field is seeded from it rather than from settings,
+    /// and the wait control counts from the item's own <see cref="Item.SavedAt"/>.
+    /// </summary>
+    [Parameter]
+    public Item? Existing { get; set; }
+
+    [Parameter]
+    public string SubmitLabel { get; set; } = "Start the hold";
+
     [Parameter]
     public EventCallback<ItemDraft> OnSubmit { get; set; }
 
     [Parameter]
     public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
 
     private string? url;
     private string? note;
@@ -136,6 +168,11 @@
     private int? waitDays;
     private string? error;
     private ElementReference firstInput;
+    private ElementReference titleInput;
+
+    private bool confirming;
+    private bool pendingFocus;
+    private ElementReference confirmButton;
 
     private bool priceIsEstimate;
     private bool estimateTouched;
@@ -183,6 +220,26 @@
 
         url = InitialUrl;
 
+        if (Existing is { } item)
+        {
+            url = item.Url;
+            title = item.Title;
+            brand = item.Brand;
+            imageUrl = item.ImageUrl;
+            price = item.Price;
+            currency = item.Currency;
+            category = item.Category;
+            waitDays = item.WaitDays;
+            note = item.Note;
+            priceIsEstimate = item.PriceIsEstimate;
+
+            // The stored flag is a choice already made. Without this the Url setter re-runs
+            // LikelyEstimate on the first keystroke and overwrites it.
+            estimateTouched = true;
+
+            return;
+        }
+
         if (Outcome?.Info is { } info)
         {
             title = info.Title;
@@ -200,8 +257,24 @@
     {
         if (firstRender)
         {
-            await firstInput.FocusAsync();
+            // Editing starts at the name; only the add flow wants the link field.
+            await (Existing is null ? firstInput : titleInput).FocusAsync();
+            return;
         }
+
+        if (!pendingFocus)
+        {
+            return;
+        }
+
+        pendingFocus = false;
+        await confirmButton.FocusAsync();
+    }
+
+    private void Ask()
+    {
+        confirming = true;
+        pendingFocus = true;
     }
 
     private string? Faint(ProductField field) =>
@@ -218,10 +291,21 @@
                 : null;
     }
 
-    private string? ReadyOn() =>
-        waitDays is >= ItemService.MinWaitDays and <= ItemService.MaxWaitDays
-            ? Time.GetUtcNow().AddDays(waitDays.Value).ToLocalTime().ToString("d MMM yyyy")
-            : null;
+    private string? ReadyOn()
+    {
+        if (waitDays is not (>= ItemService.MinWaitDays and <= ItemService.MaxWaitDays))
+        {
+            return null;
+        }
+
+        var now = Time.GetUtcNow();
+
+        // An edit counts from when the item was saved, not from today — otherwise the panel would
+        // promise a date wrong by however many days it has already waited.
+        var readyAt = (Existing?.SavedAt ?? now).AddDays(waitDays.Value);
+
+        return $"{(readyAt <= now ? "Ready since" : "Ready on")} {readyAt.ToLocalTime():d MMM yyyy}";
+    }
 
     private async Task Submit()
     {
