@@ -75,29 +75,35 @@
         </div>
     </div>
 
-    <div class="item-card__actions">
-        @if (IsClosed)
-        {
-            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Waiting)">Reopen</button>
-        }
-        else
-        {
-            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Bought)">Bought</button>
-            <button type="button" class="quiet" @onclick="() => Set(ItemStatus.LetGo)">Let go</button>
-        }
+    @if (HasActions)
+    {
+        <div class="item-card__actions">
+            @if (CanDecide)
+            {
+                @if (IsClosed)
+                {
+                    <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Waiting)">Reopen</button>
+                }
+                else
+                {
+                    <button type="button" class="quiet" @onclick="() => Set(ItemStatus.Bought)">Bought</button>
+                    <button type="button" class="quiet" @onclick="() => Set(ItemStatus.LetGo)">Let go</button>
+                }
+            }
 
-        @if (CanRecheck)
-        {
-            <button type="button" class="quiet" disabled="@checking" @onclick="Recheck">
-                @(checking ? "Reading" : "Re-check price")
-            </button>
-        }
+            @if (CanRecheck)
+            {
+                <button type="button" class="quiet" disabled="@checking" @onclick="Recheck">
+                    @(checking ? "Reading" : "Re-check price")
+                </button>
+            }
 
-        @if (OnEdit.HasDelegate)
-        {
-            <button type="button" class="quiet" @onclick="() => OnEdit.InvokeAsync(Item.Id)">Edit</button>
-        }
-    </div>
+            @if (OnEdit.HasDelegate)
+            {
+                <button type="button" class="quiet" @onclick="() => OnEdit.InvokeAsync(Item.Id)">Edit</button>
+            }
+        </div>
+    }
 </article>
 
 @code {
@@ -136,11 +142,17 @@
     private bool checking;
     private string? checkMessage;
 
+    // Every action is derived from whether a handler was supplied, never from a flag the caller has to
+    // remember to set. A read-only surface simply passes no callbacks and the row disappears.
+    private bool CanDecide => OnStatusChange.HasDelegate;
+
     private bool CanRecheck =>
         OnRecheck is not null
         && Item.Url is not null
         && Item.Price is not null
         && !Item.PriceIsEstimate;
+
+    private bool HasActions => CanDecide || CanRecheck || OnEdit.HasDelegate;
 
     private async Task Recheck()
     {
